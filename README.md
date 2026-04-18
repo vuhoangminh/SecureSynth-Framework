@@ -118,18 +118,27 @@ Sensitive Data + Configuration File
 
 **Hardware used:** NVIDIA A100 (40GB VRAM), Intel Xeon Gold 6338, 256GB DDR4 RAM, ~700 GPU runtime days.
 
-```bash
-# Recommended: use the provided Apptainer container (reproducible, no manual setup)
-# Container definitions: scripts/apptainer/biobank.def
-apptainer build biobank.sif scripts/apptainer/biobank.def
-apptainer exec --nv biobank.sif python scripts/biobank/preprocess_biobank_phase1.py
+**Local setup (conda):**
 
-# Manual conda setup (CUDA 11.2, PyTorch 1.13.1):
-conda create -n securesynth python=3.9
-pip install ctgan sdv opacus anonymeter hyperopt xgboost==1.7.6 scipy scikit-posthocs synthcity
+```bash
+# Python 3.9, CUDA 11.2 (stable, recommended for reproducibility)
+bash scripts/envs/setup.sh
+
+# Python 3.10+, CUDA 12 (newer hardware)
+bash scripts/envs/setup_py312.sh
 ```
 
-Key packages: `ctgan`, `sdv`, `opacus`, `anonymeter`, `hyperopt`, `xgboost==1.7.6`, `scipy`, `cuML`, `scikit-posthocs`, `synthcity`
+**HPC setup (Apptainer container):**
+
+```bash
+# Build container from definition file
+apptainer build biobank.sif scripts/apptainer/biobank.def
+
+# Run any script inside the container (--nv enables GPU)
+apptainer exec --nv biobank.sif python scripts/biobank/preprocess_biobank_phase1.py
+```
+
+Key packages: `ctgan==0.8.0`, `sdv==1.8.0`, `opacus`, `anonymeter==1.0.0`, `hyperopt`, `xgboost==1.7.6`, `torch==1.13.1`, `scipy`, `cuML`, `scikit-posthocs`, `imbalanced-learn`
 
 ---
 
@@ -137,18 +146,43 @@ Key packages: `ctgan`, `sdv`, `opacus`, `anonymeter`, `hyperopt`, `xgboost==1.7.
 
 ```bash
 # Step 1: Preprocess raw biobank data
-python scripts/biobank/preprocess_biobank_phase1.py   # merge & clean TSVs
-python scripts/biobank/preprocess_biobank_phase2.py   # cancer type labeling
+python scripts/biobank/preprocess_biobank_phase1.py   # merge TSVs, bin dates, pseudonymize
+python scripts/biobank/preprocess_biobank_phase2.py   # label cancer types, aggregate events
+# Note: Phase 3 preprocessing (median imputation, missingness indicators, quantile transforms,
+# binary/date encoding) is applied automatically by the dataset loader on every run.
+# See engine/dataset_helper/preprocessing.py for implementation details.
 
-# Step 2: Train a generative model (example: CTGAN with DP)
+# Step 2: Train a generative model
+# CTGAN — baseline (no DP)
+python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch ctgan
+
+# CTGAN + Differential Privacy (opacus, Rényi DP accounting)
 python scripts/biobank/main_ctgan_dp_biobank.py \
     --dataset biobank_record_vital \
-    --private --dp_sigma 1.0 \
-    --is_loss_corr --is_loss_dwp
+    --private 1 --dp_sigma 1.0 \
+    --is_loss_corr 1 --is_loss_dwp 1
 
-# Step 3: Hyperparameter optimization (IORBO)
-python scripts/tabgen/main_optimize_tabgen.py --dataset biobank_patient_dead --arch ctgan
+# CopulaGAN
+python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch copulagan
+
+# TVAE (Tabular VAE)
+python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch tvae
+
+# DP-CGANS (alternative DP-GAN)
+python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch dpcgans
+
+# CTAB-GAN
+python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch ctab
+
+# TabDDPM (single run)
+python scripts/tabgen/main_optimize_tabgen_tabddpm_single.py --dataset biobank_patient_dead
+
+# TabSyn — best overall; runs IORBO hyperparameter optimization
 python scripts/tabgen/main_optimize_tabgen_tabsyn.py --dataset biobank_patient_dead
+
+# Step 3: Hyperparameter optimization (IORBO) for GAN/VAE models
+python scripts/tabgen/main_optimize_tabgen.py --dataset biobank_patient_dead --arch ctgan
+python scripts/tabgen/main_optimize_tabgen_tabddpm.py --dataset biobank_patient_dead
 
 # Step 4: Data-sufficiency analysis
 python scripts/main_data_sufficient.py --dataset biobank_record_vital
@@ -170,7 +204,9 @@ python scripts/perform_friedman_nemenyi_biobank.py
 │   ├── datasets.py          # Dataset factory
 │   ├── custom_loss.py       # CorrDst loss (correlation + distribution aware)
 │   ├── rdp_accountant.py    # Rényi DP budget tracking
-│   └── evaluate_technical_paper.py  # Statistical, ML, and DP metrics
+│   ├── evaluate_technical_paper.py  # Statistical, ML, and DP metrics
+│   └── dataset_helper/
+│       └── preprocessing.py # Phase 3: MissingValueEncoder, DateEncoder, BinaryColumnEncoder, FlexiblePipeline
 ├── models/                  # Generative model implementations
 │   ├── ctgan.py             # CTGAN with DP support
 │   ├── tvae.py, copulagan.py, dpcgans.py, autoencoder.py
@@ -190,10 +226,14 @@ python scripts/perform_friedman_nemenyi_biobank.py
 │   │   ├── perform_friedman_nemenyi_tabgen.py   # Statistical tests (TabGen paper)
 │   │   ├── perform_friedman_nemenyi_ablation.py # Ablation tests
 │   │   └── perform_friedman_nemenyi_bo.py       # BO comparison tests
-│   ├── apptainer/           # Container definitions
+│   ├── apptainer/           # Container definitions (biobank.def, biobank_tabddpm.def)
+│   ├── envs/                # Conda environment setup (setup.sh, setup_py312.sh)
+│   ├── plot/                # Figure generation (private)
+│   ├── latex/               # LaTeX table generation (private)
 │   ├── main_data_sufficient*.py             # Data-sufficiency analysis
 │   ├── main_optimize_ml_model_*.py          # ML model tuning
 │   └── perform_friedman_nemenyi_biobank.py  # Statistical tests (biobank paper)
+├── docs/                    # Research notes, paper PDF (private)
 └── database/                # Data directory (gitignored)
     ├── dataset/             # Raw and processed datasets
     ├── gan/                 # GAN training outputs
