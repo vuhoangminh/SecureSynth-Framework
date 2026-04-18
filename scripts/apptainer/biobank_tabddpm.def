@@ -1,0 +1,39 @@
+Bootstrap: docker
+from: rapidsai/base:24.08-cuda11.8-py3.9
+
+%post
+    # Uninstall existing version of xgboost installed by conda
+    conda uninstall -y xgboost
+
+    # Install Python packages via pip
+    # pip install torch==1.10.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+    pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu116
+    pip install hyperopt
+    pip install sdv==1.8.0
+    pip install wandb
+    pip install researchpy
+    pip install imbalanced-learn scikit-posthocs tabulate
+    pip install xgboost==1.7.6
+    pip install nilearn
+    pip install SimpleITK
+    pip install termcolor 
+
+    pip install catboost==1.0.3
+    pip install category-encoders==2.3.0
+    pip install dython==0.5.1
+    pip install icecream==2.1.2
+    pip install libzero==0.0.8
+    pip install numpy==1.21.4
+    pip install optuna==2.10.1
+    pip install pandas==1.3.4
+    pip install pyarrow==6.0.0
+    pip install rtdl==0.0.9
+    pip install scikit-learn==1.0.2
+    pip install scipy==1.7.2
+    pip install skorch==0.11.0
+    pip install tomli-w==0.4.0
+    pip install tomli==1.2.2
+    pip install tqdm==4.62.3
+
+    # tvae
+    pip install rdt==1.9.0

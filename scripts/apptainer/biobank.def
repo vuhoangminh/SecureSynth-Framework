@@ -1,0 +1,43 @@
+Bootstrap: docker
+from: rapidsai/base:23.10-cuda11.8-py3.9
+
+%post
+    # Uninstall existing version of xgboost installed by conda
+    # conda uninstall -y xgboost
+
+    # Install Python packages via pip
+    pip install ctgan==0.8.0
+    pip install click requests psutil
+    pip install scipy monai
+    pip install -U albumentations
+    pip install nilearn
+    pip install SimpleITK
+    pip install comet-ml
+    pip install opacus
+    pip install matplotlib
+    pip install seaborn
+    pip install xgboost==1.7.6
+    pip install autoflake 
+    pip install termcolor 
+    pip install hyperopt
+    pip install sdv==1.8.0
+    pip install wandb
+    pip install researchpy
+    pip install imbalanced-learn scikit-posthocs tabulate
+
+    # Uninstall the current version of PyTorch and install a specific version compatible with CUDA 11.6
+    pip uninstall -y torch
+    pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu116
+
+    pip install icecream==2.1.2
+    pip install category-encoders==2.3.0
+    pip install tomli_w
+    pip install libzero==0.0.8
+    pip install rtdl==0.0.9
+    pip install catboost==1.0.3
+    pip install anonymeter==1.0.0
+    
+    # Uninstall existing version of pandas and install version 1.5.3
+    pip install pandas==1.5.3
+
+    pip install xlrd
