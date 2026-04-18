@@ -191,9 +191,9 @@ def objective(params):
 
     try:
         if args.row_number is not None:
-            _cmd = f"python -W ignore scripts/main_technical_paper.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec} --row_number {args.row_number}"
+            _cmd = f"python -W ignore scripts/tabgen/main_tabgen.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec} --row_number {args.row_number}"
         else:
-            _cmd = f"python -W ignore scripts/main_technical_paper.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec}"
+            _cmd = f"python -W ignore scripts/tabgen/main_tabgen.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec}"
 
         cmd = update_cmd(params, _cmd)
 

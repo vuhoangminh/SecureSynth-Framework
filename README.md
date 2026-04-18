@@ -2,7 +2,7 @@
 
 **Minh H. Vu, Daniel Edler, Carl Wibom, Martin Rosvall, Beatrice Melin**  
 Department of Diagnostics and Intervention, Umeå University, Sweden  
-Corresponding author: minh.vu@umu.se
+Corresponding author: [minh.vu@umu.se](mailto:minh.vu@umu.se)
 
 ---
 
@@ -19,9 +19,11 @@ This work builds on our prior **TabGen-Framework** ([github.com/vuhoangminh/TabG
 ## Key Contributions
 
 ### 1. Privacy-Aware Synthesis Framework
+
 Open-source, Docker-containerized pipeline. A single configuration file specifies dataset attributes, preprocessing rules, and privacy constraints, enabling reproducible deployment across institutions.
 
 ### 2. Biomedical Data-Handling & Evaluation Framework
+
 Four integrated components:
 
 - **Robust preprocessing** — handles missingness rates from 0.4% to 90% via median imputation, quantile transformations, and explicit missingness indicators; substantially outperforms standard constant-value imputation.
@@ -30,7 +32,9 @@ Four integrated components:
 - **Postprocessing & rejection sampling** — enforces expert-defined correlations and logical constraints (e.g., no male patients assigned breast cancer), ensuring clinical plausibility of synthetic outputs.
 
 ### 3. Interactive Visualization Tool
+
 Privacy-preserving exploration of health data with:
+
 - Adaptive anonymization via k-anonymity (counts suppressed below 10 individuals)
 - Hierarchical ICD-10 disease code navigation
 - Interactive filtering and stratification by demographics, diagnoses, and biomarkers
@@ -67,7 +71,7 @@ The PREDICT cohort datasets are organized into three GDPR regulatory levels:
 
 ## Framework Pipeline
 
-```
+```text
 Sensitive Data + Configuration File
         │
         ▼  Preprocessing
@@ -115,14 +119,14 @@ Sensitive Data + Configuration File
 **Hardware used:** NVIDIA A100 (40GB VRAM), Intel Xeon Gold 6338, 256GB DDR4 RAM, ~700 GPU runtime days.
 
 ```bash
-# Set up conda environment (downloads Anaconda, installs CUDA 11.2, PyTorch 1.13.1)
-bash scripts/envs/setup.sh
-
-# For HPC clusters (Alvis/Chalmers)
-bash scripts/envs/biobank_alvis.sh
-
-# Or use the provided Apptainer/Docker container
+# Recommended: use the provided Apptainer container (reproducible, no manual setup)
 # Container definitions: scripts/apptainer/biobank.def
+apptainer build biobank.sif scripts/apptainer/biobank.def
+apptainer exec --nv biobank.sif python scripts/biobank/preprocess_biobank_phase1.py
+
+# Manual conda setup (CUDA 11.2, PyTorch 1.13.1):
+conda create -n securesynth python=3.9
+pip install ctgan sdv opacus anonymeter hyperopt xgboost==1.7.6 scipy scikit-posthocs synthcity
 ```
 
 Key packages: `ctgan`, `sdv`, `opacus`, `anonymeter`, `hyperopt`, `xgboost==1.7.6`, `scipy`, `cuML`, `scikit-posthocs`, `synthcity`
@@ -143,21 +147,24 @@ python scripts/biobank/main_ctgan_dp_biobank.py \
     --is_loss_corr --is_loss_dwp
 
 # Step 3: Hyperparameter optimization (IORBO)
-python scripts/main_optimize_technical_paper.py --dataset adult --model ctgan
-python scripts/main_optimize_technical_paper_tabsyn.py --dataset biobank_patient_dead
+python scripts/tabgen/main_optimize_tabgen.py --dataset biobank_patient_dead --arch ctgan
+python scripts/tabgen/main_optimize_tabgen_tabsyn.py --dataset biobank_patient_dead
 
-# Step 4: Post-process synthetic data
+# Step 4: Data-sufficiency analysis
+python scripts/main_data_sufficient.py --dataset biobank_record_vital
+
+# Step 5: Post-process synthetic data
 python scripts/biobank/main_postprocess_biobank.py
 
-# Step 5: Generate paper figures
-python scripts/plot/plot_nature_ranking.py
+# Step 6: Statistical significance testing
+python scripts/perform_friedman_nemenyi_biobank.py
 ```
 
 ---
 
 ## Repository Structure
 
-```
+```text
 ├── engine/                  # Core library: datasets, evaluation, custom losses, DP accounting
 │   ├── config.py            # Model/dataset registries, plot config
 │   ├── datasets.py          # Dataset factory
@@ -173,13 +180,20 @@ python scripts/plot/plot_nature_ranking.py
 ├── scripts/
 │   ├── biobank/             # Preprocess → train → postprocess pipeline
 │   ├── bianca/              # BIANCA study analysis and distribution comparison
-│   ├── plot/                # Figure generation for paper
-│   ├── latex/               # LaTeX table generation
-│   ├── envs/                # Conda and HPC environment setup
+│   ├── tabgen/              # Optimization & statistical test entry points (shared across papers)
+│   │   ├── main_tabgen.py                       # Train a single generative model
+│   │   ├── main_optimize_tabgen.py              # IORBO hyperparameter optimization (GAN/VAE)
+│   │   ├── main_optimize_tabgen_tabddpm.py      # IORBO for TabDDPM
+│   │   ├── main_optimize_tabgen_tabddpm_single.py  # Single TabDDPM run
+│   │   ├── main_optimize_tabgen_tabsyn.py       # IORBO for TabSyn
+│   │   ├── check_optimize_tabgen.py             # Verify optimization outputs
+│   │   ├── perform_friedman_nemenyi_tabgen.py   # Statistical tests (TabGen paper)
+│   │   ├── perform_friedman_nemenyi_ablation.py # Ablation tests
+│   │   └── perform_friedman_nemenyi_bo.py       # BO comparison tests
 │   ├── apptainer/           # Container definitions
-│   └── jobs/                # HPC batch job scripts
-├── docs/
-│   └── paper.pdf            # Published paper
+│   ├── main_data_sufficient*.py             # Data-sufficiency analysis
+│   ├── main_optimize_ml_model_*.py          # ML model tuning
+│   └── perform_friedman_nemenyi_biobank.py  # Statistical tests (biobank paper)
 └── database/                # Data directory (gitignored)
     ├── dataset/             # Raw and processed datasets
     ├── gan/                 # GAN training outputs
