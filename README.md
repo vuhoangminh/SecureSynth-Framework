@@ -1,5 +1,10 @@
 # Anonymization and Visualization of Health Data and Biomarkers
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.9](https://img.shields.io/badge/Python-3.9-green)](https://www.python.org/downloads/release/python-390/)
+[![PyTorch 1.13](https://img.shields.io/badge/PyTorch-1.13.1-orange)](https://pytorch.org/)
+[![Prior Work: TabGen](https://img.shields.io/badge/Prior%20Work-TabGen--Framework-blue)](https://github.com/vuhoangminh/TabGen-Framework)
+
 **Minh H. Vu, Daniel Edler, Carl Wibom, Martin Rosvall, Beatrice Melin**  
 Department of Diagnostics and Intervention, Umeå University, Sweden  
 Corresponding author: [minh.vu@umu.se](mailto:minh.vu@umu.se)
@@ -13,6 +18,10 @@ This repository contains the full codebase for the paper *"Anonymization and Vis
 The framework integrates advanced deep generative models (DGMs) with robust preprocessing, formal differential privacy (DP), systematic data-sufficiency analysis, domain-guided quality control, and interactive visualization — all released as open-source, containerized software.
 
 This work builds on our prior **TabGen-Framework** ([github.com/vuhoangminh/TabGen-Framework](https://github.com/vuhoangminh/TabGen-Framework), *TMLR* 2026), which introduced the `CorrDst` loss functions and IORBO hyperparameter optimization. The present paper adds the biomedical preprocessing pipeline, data-sufficiency analysis, rejection sampling, and visualization tooling.
+
+> **Looking for the foundational framework?**
+> The `CorrDst` loss functions and IORBO hyperparameter optimization used in this work were introduced in our prior paper. See **TabGen-Framework** for the benchmarking suite across 20 public datasets and 10 DGM baselines.
+> **→ [github.com/vuhoangminh/TabGen-Framework](https://github.com/vuhoangminh/TabGen-Framework)**
 
 ---
 
@@ -248,21 +257,26 @@ If you use this work, please cite:
 
 ```bibtex
 @article{vu2026b,
-  title={Anonymization and Visualization of Health Data and Biomarkers},
-  author={Vu, Minh H. and Edler, Daniel and Wibom, Carl and Rosvall, Martin and Melin, Beatrice},
-  institution={Umeå University},
-  year={2026}
+  title       = {Anonymization and Visualization of Health Data and Biomarkers},
+  author      = {Vu, Minh H. and Edler, Daniel and Wibom, Carl and Rosvall, Martin and Melin, Beatrice},
+  institution = {Umeå University},
+  year        = {2026},
+  url         = {https://github.com/vuhoangminh/SecureSynth-Framework},
 }
 ```
 
-For the foundational loss functions and IORBO optimization, please also cite the prior work:
+For the foundational `CorrDst` loss functions and IORBO optimization introduced in the prior work, please also cite:
 
 ```bibtex
 @article{vu2026a,
-  title={A Unified Framework for Tabular Generative Modeling},
-  journal={Transactions on Machine Learning Research},
-  year={2026},
-  url={https://openreview.net/forum?id=RPZ0EW0lz0}
+  title   = {A Unified Framework for Tabular Generative Modeling: Loss Functions,
+             Benchmarks, and Improved Multi-objective Bayesian Optimization Approaches},
+  author  = {Minh Hoang Vu and Daniel Edler and Carl Wibom and Tommy L{\"o}fstedt
+             and Beatrice Melin and Martin Rosvall},
+  journal = {Transactions on Machine Learning Research},
+  issn    = {2835-8856},
+  year    = {2026},
+  url     = {https://openreview.net/forum?id=RPZ0EW0lz0},
 }
 ```
 
