@@ -144,7 +144,7 @@ bash scripts/envs/setup_py312.sh
 apptainer build biobank.sif scripts/apptainer/biobank.def
 
 # Run any script inside the container (--nv enables GPU)
-apptainer exec --nv biobank.sif python scripts/biobank/preprocess_biobank_phase1.py
+apptainer exec --nv biobank.sif python scripts/biobank/01_preprocess_phase1.py
 ```
 
 Key packages: `ctgan==0.8.0`, `sdv==1.8.0`, `opacus`, `anonymeter==1.0.0`, `hyperopt`, `xgboost==1.7.6`, `torch==1.13.1`, `scipy`, `cuML`, `scikit-posthocs`, `imbalanced-learn`
@@ -155,52 +155,52 @@ Key packages: `ctgan==0.8.0`, `sdv==1.8.0`, `opacus`, `anonymeter==1.0.0`, `hype
 
 ```bash
 # Step 1: Preprocess raw biobank data
-python scripts/biobank/preprocess_biobank_phase1.py   # merge TSVs, bin dates, pseudonymize
-python scripts/biobank/preprocess_biobank_phase2.py   # label cancer types, aggregate events
+python scripts/biobank/01_preprocess_phase1.py   # merge TSVs, bin dates, pseudonymize
+python scripts/biobank/02_preprocess_phase2.py   # label cancer types, aggregate events
 # Note: Phase 3 preprocessing (median imputation, missingness indicators, quantile transforms,
 # binary/date encoding) is applied automatically by the dataset loader on every run.
 # See engine/dataset_helper/preprocessing.py for implementation details.
 
 # Step 2: Train a generative model
 # CTGAN — baseline (no DP)
-python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch ctgan
+python scripts/optimize/run_tabgen.py --dataset biobank_patient_dead --arch ctgan
 
 # CTGAN + Differential Privacy (opacus, Rényi DP accounting)
-python scripts/biobank/main_ctgan_dp_biobank.py \
+python scripts/biobank/03_train.py \
     --dataset biobank_record_vital \
     --private 1 --dp_sigma 1.0 \
     --is_loss_corr 1 --is_loss_dwp 1
 
 # CopulaGAN
-python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch copulagan
+python scripts/optimize/run_tabgen.py --dataset biobank_patient_dead --arch copulagan
 
 # TVAE (Tabular VAE)
-python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch tvae
+python scripts/optimize/run_tabgen.py --dataset biobank_patient_dead --arch tvae
 
 # DP-CGANS (alternative DP-GAN)
-python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch dpcgans
+python scripts/optimize/run_tabgen.py --dataset biobank_patient_dead --arch dpcgans
 
 # CTAB-GAN
-python scripts/tabgen/main_tabgen.py --dataset biobank_patient_dead --arch ctab
+python scripts/optimize/run_tabgen.py --dataset biobank_patient_dead --arch ctab
 
 # TabDDPM (single run)
-python scripts/tabgen/main_optimize_tabgen_tabddpm_single.py --dataset biobank_patient_dead
+python scripts/optimize/optimize_tabddpm_single.py --dataset biobank_patient_dead
 
 # TabSyn — best overall; runs IORBO hyperparameter optimization
-python scripts/tabgen/main_optimize_tabgen_tabsyn.py --dataset biobank_patient_dead
+python scripts/optimize/optimize_tabsyn.py --dataset biobank_patient_dead
 
 # Step 3: Hyperparameter optimization (IORBO) for GAN/VAE models
-python scripts/tabgen/main_optimize_tabgen.py --dataset biobank_patient_dead --arch ctgan
-python scripts/tabgen/main_optimize_tabgen_tabddpm.py --dataset biobank_patient_dead
+python scripts/optimize/optimize_ctgan.py --dataset biobank_patient_dead --arch ctgan
+python scripts/optimize/optimize_tabddpm.py --dataset biobank_patient_dead
 
-# Step 4: Data-sufficiency analysis
-python scripts/main_data_sufficient.py --dataset biobank_record_vital
+# Step 4: Post-process synthetic data
+python scripts/biobank/04_postprocess.py
 
-# Step 5: Post-process synthetic data
-python scripts/biobank/main_postprocess_biobank.py
+# Step 5: Data-sufficiency analysis
+python scripts/analysis/data_sufficiency.py --dataset biobank_record_vital
 
 # Step 6: Statistical significance testing
-python scripts/perform_friedman_nemenyi_biobank.py
+python scripts/analysis/friedman_nemenyi.py
 ```
 
 ---
@@ -218,31 +218,31 @@ python scripts/perform_friedman_nemenyi_biobank.py
 │       └── preprocessing.py # Phase 3: MissingValueEncoder, DateEncoder, BinaryColumnEncoder, FlexiblePipeline
 ├── models/                  # Generative model implementations
 │   ├── ctgan.py             # CTGAN with DP support
-│   ├── tvae.py, copulagan.py, dpcgans.py, autoencoder.py
+│   ├── tvae.py, copulagan.py, dpcgans.py
 │   ├── tab_ddpm/            # TabDDPM (third-party)
 │   ├── tabsyn/              # TabSyn (third-party)
 │   └── CTAB/                # CTAB-GAN (third-party)
-├── scripts/
-│   ├── biobank/             # Preprocess → train → postprocess pipeline
+├── scripts/                 # See scripts/README.md for pipeline walkthrough
+│   ├── biobank/             # Reference pipeline for PREDICT cohort (numbered 01–04)
+│   │   ├── 01_preprocess_phase1.py
+│   │   ├── 02_preprocess_phase2.py
+│   │   ├── 03_train.py
+│   │   └── 04_postprocess.py
 │   ├── bianca/              # BIANCA study analysis and distribution comparison
-│   ├── tabgen/              # Optimization & statistical test entry points (shared across papers)
-│   │   ├── main_tabgen.py                       # Train a single generative model
-│   │   ├── main_optimize_tabgen.py              # IORBO hyperparameter optimization (GAN/VAE)
-│   │   ├── main_optimize_tabgen_tabddpm.py      # IORBO for TabDDPM
-│   │   ├── main_optimize_tabgen_tabddpm_single.py  # Single TabDDPM run
-│   │   ├── main_optimize_tabgen_tabsyn.py       # IORBO for TabSyn
-│   │   ├── check_optimize_tabgen.py             # Verify optimization outputs
-│   │   ├── perform_friedman_nemenyi_tabgen.py   # Statistical tests (TabGen paper)
-│   │   ├── perform_friedman_nemenyi_ablation.py # Ablation tests
-│   │   └── perform_friedman_nemenyi_bo.py       # BO comparison tests
+│   ├── optimize/            # IORBO hyperparameter optimisation entry points
+│   │   ├── run_tabgen.py                # Train a single generative model
+│   │   ├── optimize_ctgan.py            # IORBO for CTGAN/VAE models
+│   │   ├── optimize_tabddpm.py          # IORBO for TabDDPM
+│   │   ├── optimize_tabddpm_single.py   # Single TabDDPM run
+│   │   ├── optimize_tabsyn.py           # IORBO for TabSyn
+│   │   └── check_results.py             # Verify optimisation outputs
+│   ├── analysis/            # Post-hoc statistical tests and data-sufficiency analysis
+│   │   ├── data_sufficiency.py
+│   │   ├── data_sufficiency_nemenyi.py
+│   │   ├── ml_evaluation.py
+│   │   └── friedman_nemenyi.py
 │   ├── apptainer/           # Container definitions (biobank.def, biobank_tabddpm.def)
-│   ├── envs/                # Conda environment setup (setup.sh, setup_py312.sh)
-│   ├── plot/                # Figure generation (private)
-│   ├── latex/               # LaTeX table generation (private)
-│   ├── main_data_sufficient*.py             # Data-sufficiency analysis
-│   ├── main_optimize_ml_model_*.py          # ML model tuning
-│   └── perform_friedman_nemenyi_biobank.py  # Statistical tests (biobank paper)
-├── docs/                    # Research notes, paper PDF (private)
+│   └── envs/                # Conda environment setup (setup.sh, setup_py312.sh)
 └── database/                # Data directory (gitignored)
     ├── dataset/             # Raw and processed datasets
     ├── gan/                 # GAN training outputs
