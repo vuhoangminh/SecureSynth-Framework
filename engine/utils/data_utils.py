@@ -25,54 +25,6 @@ def replace_bin_with_first_number(df, col):
     return df
 
 
-def _legacy_preprocess(df):
-    for col in [
-        "samp_date_bin",
-        "qnr_date_bin",
-        "birth_date_bin",
-        "dx_date_bin",
-        "vitalstatus_date_bin",
-        "death_date_bin",
-        "age_bin",
-        "samp_span_bin",
-        "qnr_span_bin",
-        "life_span_bin",
-        "vital_span_bin",
-    ]:
-        df = replace_bin_with_first_number(df, col)
-
-    # set categorical type
-    for col in [
-        "id",
-        "sex",
-        "llkk_txt",
-        "llkk_county_letter",
-    ]:
-        df = convert_categories_to_numbers(df, col)
-
-    # set numerical type
-    for col in [
-        "bmi",
-        "samp_date_bin",
-        "qnr_date_bin",
-        "birth_date_bin",
-        "dx_date_bin",
-        "vitalstatus_date_bin",
-        "death_date_bin",
-        "age_bin",
-        "samp_span_bin",
-        "qnr_span_bin",
-        "life_span_bin",
-        "vital_span_bin",
-    ]:
-        df[col] = df[col].astype("float")
-
-    df["is_vital"] = np.where(df["vital_span_bin"] != -1, 1, 0)
-    df["is_dead"] = np.where(df["death_date_bin"] != -1, 1, 0)
-
-    return df
-
-
 def clean_record(df):
     for col in [
         "samp_date_bin",

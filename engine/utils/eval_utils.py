@@ -34,52 +34,6 @@ def is_sample_have_all_classes(df, df_fake):
 
 
 # ===========================================================================
-# Old KL divergence functions
-# ===========================================================================
-def _legacy_clip_array(a, b):
-    """
-    Clip the values of array b to the range of array a.
-
-    Args:
-        a (numpy.ndarray): The reference array.
-        b (numpy.ndarray): The array to clip.
-
-    Returns:
-        numpy.ndarray: The clipped array.
-    """
-    a_min = a.min()
-    a_max = a.max()
-    return np.clip(b, a_min, a_max)
-
-
-def _legacy_compute_kl_divergence(df, df_fake, continuous_columns=[]):
-    d = 0
-    count = 0
-    for col in list(df.columns):
-        if col in continuous_columns:
-            df_array = df[col].to_numpy()
-            df_fake_array = df_fake[col].to_numpy()
-
-            df_fake_array = _legacy_clip_array(df_array, df_fake_array)
-
-            # Reshape the arrays to have the same shape
-            max_len = max(len(df_array), len(df_fake_array))
-            df_array = np.pad(df_array, (0, max_len - len(df_array)))
-            df_fake_array = np.pad(df_fake_array, (0, max_len - len(df_fake_array)))
-
-            s = entropy(df_array, df_fake_array)
-
-            if not np.isinf(s):
-                d += s
-                count += 1
-
-    if count > 0:
-        d /= count
-
-    return d
-
-
-# ===========================================================================
 # Dimensional wise probability (DWP) functions
 # ===========================================================================
 def compute_distance_point_to_line(p3, p1=[0, 0], p2=[1, 1]):
@@ -159,26 +113,6 @@ def compute_diff_correlation(df, df_fake):
     return d
 
 
-# ===========================================================================
-# KL divergence functions
-# ===========================================================================
-def _legacy_get_bins_historgram(x):
-    # Compute the Freedman-Diaconis bin width
-    iqr = np.percentile(x, 75) - np.percentile(x, 25)
-    bin_width = 2 * iqr * len(x) ** (-1 / 3)
-
-    # Compute the number of bins using the bin width
-    num_bins = int(np.ceil((x.max() - x.min()) / bin_width))
-
-    return num_bins
-
-
-def _legacy_get_norm_historgram(x, num_bins):
-    x_hist, _ = np.histogram(x, bins=num_bins)
-    x_hist_norm = x_hist / np.sum(x_hist)
-    return x_hist_norm
-
-
 def plot_hist(x, y, num_bins, col):
     import matplotlib.pyplot as plt
 
@@ -188,17 +122,6 @@ def plot_hist(x, y, num_bins, col):
     plt.legend(loc="upper right")
     plt.title(col)
     plt.show()
-
-
-def _legacy_get_value_counts_intersection(df1, df2, col):
-    # Get the unique values of column 'X' in both DataFrames
-    unique_values = pd.Series(list(set(df1[col]).union(set(df2[col]))))
-
-    # Get the value counts of column 'X' in both DataFrames and fill with 0
-    vc1 = df1[col].value_counts().reindex(unique_values, fill_value=0).sort_index()
-    vc2 = df2[col].value_counts().reindex(unique_values, fill_value=0).sort_index()
-
-    return vc1, vc2
 
 
 def get_value_counts_intersection_categorical_variable(df1, df2, col):

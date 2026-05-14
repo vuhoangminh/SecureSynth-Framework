@@ -126,22 +126,6 @@ def objective(params):
             "dir_logs": dir_logs if "dir_logs" in locals() else None,
         }
 
-    def _legacy_save_preprocessed(_D, _dir_logs):
-        df = _D.data_train
-
-        # Convert all object dtype columns to int
-        df = df.apply(
-            lambda col: (
-                pd.to_numeric(col, errors="ignore") if col.dtype == "object" else col
-            )
-        )
-        print(df)
-        path_utils.make_dir(_dir_logs)
-        print(f"Save to {_dir_logs}")
-        df.to_csv(
-            os.path.join(_dir_logs, "preprocessed.csv"), sep="\t", encoding="utf-8"
-        )
-
     def save_preprocessed(data_path, _dir_logs, row_number):
         print(f"Save to {_dir_logs}")
 
