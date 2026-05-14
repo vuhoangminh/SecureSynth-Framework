@@ -158,7 +158,7 @@ def general(paths):
         print()
 
         """
-        python -W ignore scripts/tabgen/main_tabgen.py --dir_logs database/gan_optimize/ --is_test 0 --dataset biobank_phase3_dummy --arch ctgan --loss_version 0 --checkpoint_freq 100 --is_condvec 0 --batch_size 200 --discriminator_decay 1.1335380377164272e-07 --discriminator_dim 128 --discriminator_lr 2.5529909452737364e-05 --dp_sigma 0.7808473588167365 --dp_weight_clip 0.31732184923126583 --embedding_dim 32 --epochs 400 --generator_decay 5.946743069779757e-07 --generator_dim 128 --generator_lr 0.00011308360035148551 --private 0
+        python -W ignore scripts/optimize/run_tabgen.py --dir_logs database/gan_optimize/ --is_test 0 --dataset biobank_phase3_dummy --arch ctgan --loss_version 0 --checkpoint_freq 100 --is_condvec 0 --batch_size 200 --discriminator_decay 1.1335380377164272e-07 --discriminator_dim 128 --discriminator_lr 2.5529909452737364e-05 --dp_sigma 0.7808473588167365 --dp_weight_clip 0.31732184923126583 --embedding_dim 32 --epochs 400 --generator_decay 5.946743069779757e-07 --generator_dim 128 --generator_lr 0.00011308360035148551 --private 0
         """
 
         print(path_utils.get_filename_without_extension(path), count_success)
