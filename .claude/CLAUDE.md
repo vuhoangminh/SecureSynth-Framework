@@ -1,0 +1,1 @@
+../../obsidian-clean/projects/research/SecureSynth-Framework/claude/claude.md
