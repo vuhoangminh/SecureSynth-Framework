@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import joblib
-from pandas.core.api import DataFrame as DataFrame
 from engine.config import config
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import (
@@ -11,8 +10,6 @@ from sklearn.preprocessing import (
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import FunctionTransformer
-import pandas as pd
-import os
 
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import LabelEncoder

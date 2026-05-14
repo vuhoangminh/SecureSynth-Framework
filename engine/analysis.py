@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -29,27 +28,6 @@ def adjust_color(color_name, percentage):
     )
 
     return mixed_color
-
-
-def compare_statistics_old(d):
-    txt = "{:<30s}".format("")
-    for key, df in d.items():
-        txt = txt + "{:>25s}".format(key)
-
-    d_describe = {}
-    for key, df in d.items():
-        d_describe[key] = df.describe()
-
-    print(txt)
-    print("-" * 120)
-    for col in df:
-        col_txt = "{:<30s}".format(col)
-        for key, df_describe in d_describe.items():
-            mean = df_describe[col]["mean"]
-            std = df_describe[col]["std"]
-            df_txt = "{:.4f} ({:.4f})".format(mean, std)
-            col_txt = col_txt + "{:>25s}".format(df_txt)
-        print(col_txt)
 
 
 def compare_statistics(d):

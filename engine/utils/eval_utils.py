@@ -14,7 +14,6 @@ from scipy.stats import norm
 from scipy.stats import entropy  # KL divergence
 from scipy.stats import chisquare  # Pearson's chi-squared test
 from scipy.stats import kstest  # Kolmogorov–Smirnov test
-from scipy.stats import chi2_contingency
 from scipy.stats import pearsonr
 
 
@@ -574,46 +573,6 @@ def main_kl(df, df_fake_old, df_fake_new, discrete_columns, continuous_columns):
         is_continuous=True,
     )
     print(kl_con)
-
-
-def main_cs(df, df_fake_old, df_fake_new, discrete_columns, continuous_columns):
-    cs_cat = compute_chisquare_test(
-        df, df_fake_old, cols=discrete_columns, handle_missing=False
-    )
-    print(cs_cat)
-
-    cs_cat = compute_chisquare_test(
-        df, df_fake_new, cols=discrete_columns, handle_missing=False
-    )
-    print(cs_cat)
-
-
-def main_kstest(df, df_fake_old, df_fake_new, discrete_columns, continuous_columns):
-    ks_con = compute_kolmogorov_smirnov_test(
-        df, df_fake_old, cols=continuous_columns, handle_missing=False
-    )
-    print(ks_con)
-
-    ks_con = compute_kolmogorov_smirnov_test(
-        df, df_fake_new, cols=continuous_columns, handle_missing=False
-    )
-    print(ks_con)
-
-
-def main_cramer(df, df_fake_old, df_fake_new, discrete_columns, continuous_columns):
-    cs_cat = compute_cramers_v_correlation(df, df_fake_old, cols=discrete_columns)
-    print(cs_cat)
-
-    cs_cat = compute_cramers_v_correlation(df, df_fake_new, cols=discrete_columns)
-    print(cs_cat)
-
-
-def main_pearson(df, df_fake_old, df_fake_new, discrete_columns, continuous_columns):
-    cs_cat = compute_pearson_correlation(df, df_fake_old, cols=continuous_columns)
-    print(cs_cat)
-
-    cs_cat = compute_pearson_correlation(df, df_fake_new, cols=continuous_columns)
-    print(cs_cat)
 
 
 def init():

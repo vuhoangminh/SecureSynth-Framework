@@ -1,14 +1,12 @@
 import os
 import re
-import math
 import random
-import numpy as np
 import pandas as pd
 import argparse
 from rich import print
 
 import engine.config as config
-from engine.datasets import get_dataset, AdultDataset
+from engine.datasets import get_dataset
 import engine.utils.path_utils as path_utils
 from engine.utils.hyperopt_utils import (
     get_best_set_params,
@@ -25,16 +23,6 @@ from engine.experiment_technical_paper import (
     perform_svm,
 )
 
-
-def get_loss_version(folder):
-    # adult-copulagan-bs_16000-epochs_3000-ed_128-moment_1-losscorcorr_0-lossdis_1-condvec_0
-    # adult-copulagan-bs_16000-epochs_3000-ed_128-moment_1-losscorcorr_0-normalizedlossdis_1-condvec_0
-    if "moment" in folder and "normalizedlossdis" not in folder:  # version 2
-        return 2
-    elif "moment" in folder and "normalizedlossdis" in folder:  # version 3
-        return 3
-    else:
-        return 1
 
 
 def init_score(folder, filename):

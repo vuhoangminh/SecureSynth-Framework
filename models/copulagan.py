@@ -12,7 +12,6 @@ from models.base import BaseSingleTableSynthesizer
 
 from sdv.single_table.copulas import GaussianCopulaSynthesizer
 from sdv.single_table.utils import (
-    detect_discrete_columns,
     log_numerical_distributions_error,
     validate_numerical_distributions,
 )

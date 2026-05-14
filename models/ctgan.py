@@ -20,20 +20,18 @@ from torch.nn import (
 )
 
 # from ctgan.data_sampler import DataSampler
-from engine.ctgan_data_sampler import MyDataset, MyCustomDataset
+from engine.ctgan_data_sampler import MyDataset
 from engine.ctgan_data_transformer import DataTransformer
 
 from ctgan.synthesizers.base import BaseSynthesizer, random_state
 from engine.rdp_accountant import compute_rdp, get_privacy_spent
 
-from torch.utils.data import DataLoader
 from engine.utils.model_utils import save_checkpoint
 import engine.utils.train_utils as train_utils
 import engine.utils.print_utils as print_utils
 import engine.utils.model_utils as model_utils
 import engine.utils.eval_utils as eval_utils
 import engine.utils.path_utils as path_utils
-from engine.config import config
 
 from engine.custom_loss import CorrelationLoss, DWPLoss
 from engine.custom_loss import (

@@ -22,9 +22,7 @@ from torch.nn import (
     Sequential,
     functional,
     BCEWithLogitsLoss,
-    utils,
 )
-from tqdm import tqdm
 
 from engine.dpcgans_data_sampler import DataSampler
 from engine.ctgan_data_transformer import DataTransformer
@@ -33,8 +31,6 @@ from engine.ctgan_data_transformer import DataTransformer
 from models.base import BaseSynthesizer
 
 ######## ADDED ########
-from datetime import datetime
-from contextlib import redirect_stdout
 from engine.rdp_accountant import compute_rdp, get_privacy_spent
 import copy
 
@@ -43,8 +39,6 @@ import engine.utils.train_utils as train_utils
 import engine.utils.print_utils as print_utils
 import engine.utils.model_utils as model_utils
 import engine.utils.eval_utils as eval_utils
-import engine.utils.path_utils as path_utils
-from engine.config import config
 
 from engine.custom_loss import CorrelationLoss, DWPLoss
 from engine.custom_loss import (

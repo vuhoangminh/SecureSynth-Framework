@@ -9,8 +9,6 @@ from sklearn.metrics import (
     f1_score,
     roc_auc_score,
     balanced_accuracy_score,
-    recall_score,
-    precision_score,
 )
 
 # from imblearn.metrics import geometric_mean_score

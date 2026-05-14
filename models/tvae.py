@@ -9,7 +9,6 @@ from torch.nn import Linear, Module, Parameter, ReLU, Sequential
 from torch.nn.functional import cross_entropy
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
 
 from engine.ctgan_data_transformer import DataTransformer
 from ctgan.synthesizers.base import BaseSynthesizer, random_state

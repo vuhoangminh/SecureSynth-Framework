@@ -8,11 +8,11 @@ from sklearn import metrics
 from sklearn.cluster import KMeans
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import StandardScaler
 
 from joblib import Parallel, delayed
 from scipy import stats
-from scipy.stats import entropy, multivariate_normal, wasserstein_distance
+from scipy.stats import entropy, multivariate_normal
 
 # Custom packages/modules
 from engine.datasets import get_dataset
