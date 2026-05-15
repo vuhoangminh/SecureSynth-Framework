@@ -1,0 +1,46 @@
+[data]
+path = "data/clinical.csv"
+format = "csv"
+drop_columns = ["patient_id"]
+
+[columns]
+continuous = ["age", "bmi", "systolic_bp", "diastolic_bp", "glucose", "cholesterol", "creatinine"]
+discrete   = ["sex", "diagnosis"]
+target     = "mortality"
+task       = "classification"
+
+[attributes]
+key       = ["age", "sex"]
+sensitive = ["diagnosis", "diabetes", "hypertension", "readmission_30d", "mortality"]
+
+[preprocessing]
+date_columns      = []
+pca               = false
+pca_variance      = 0.9
+pca_exclude       = []
+missing_noise_std = 0.05
+
+[training]
+gms        = ["CTGAN", "TVAE", "TabSyn"]
+losses     = ["vanilla", "cd"]
+epochs     = 10000
+batch_size = 500
+
+[differential_privacy]
+enabled     = false
+epsilon     = 1.0
+delta       = 1e-5
+dp_sigma    = 1.0
+weight_clip = 0.1
+
+[postprocessing]
+# pandas df.query() syntax
+constraints = [
+    "diastolic_bp < systolic_bp",
+    "age >= 18",
+]
+
+[output]
+# n_samples omitted → match input size (default: null)
+output_dir = "output/clinical/synthetic/"
+report     = true

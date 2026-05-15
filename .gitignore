@@ -151,6 +151,9 @@ database/dataset/
 *.npy
 *.pickle
 *.toml
+!configs/*.toml
+data/
+output/
 *.data
 *.names
 *.xls

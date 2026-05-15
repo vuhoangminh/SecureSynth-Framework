@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from engine.dataset_helper.base import DATASET_CLASSES
+from engine.dataset_helper.generic import GenericDataset
 from engine.dataset_helper.public import *
 from engine.dataset_helper.biobank_phase1 import *
 from engine.dataset_helper.biobank_phase2 import *
@@ -11,6 +14,11 @@ def get_dataset(dataset, arch=None, is_encode=True, notebook_path=None):
     # Mapping dataset names to their corresponding classes
 
     if dataset not in DATASET_CLASSES:
+        config_path = Path("configs") / f"{dataset}.toml"
+        if config_path.exists():
+            return GenericDataset(
+                str(config_path), is_encode=is_encode, notebook_path=notebook_path
+            )
         raise NotImplementedError(f"The dataset '{dataset}' is not implemented.")
 
     # Instantiate the dataset object
