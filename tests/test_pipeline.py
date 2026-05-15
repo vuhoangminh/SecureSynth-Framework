@@ -10,6 +10,7 @@ t020 — optimize_ctgan.py: IORBO runs 1 hyperopt trial without error
 t021 — optimize_tabsyn.py: IORBO runs 1 TabSyn trial without error
 t022 — optimize_tabddpm.py: IORBO runs 1 TabDDPM trial without error
 t023 — check_results.py --dataset clinical: ranking output is produced
+t024 — ml_evaluation.py: 1 IORBO trial for regression classifier, clean exit
 """
 
 import os
@@ -217,4 +218,39 @@ def test_check_results_produces_output():
     )
     assert "n_success/n_runs" in result.stdout, (
         f"Expected ranking summary not found in stdout:\n{result.stdout[-1000:]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# t024 — ml_evaluation.py: 1 IORBO trial for regression classifier
+# ---------------------------------------------------------------------------
+
+def test_ml_evaluation_one_trial():
+    """ml_evaluation.py --dataset clinical --ml_method regression --max_trials 1 --is_test 1:
+    confirm 1 classifier hyperopt trial runs and exits cleanly.
+
+    Writes to database/optimization_ml_method/clinical_regression.hyperopt.
+    Produces the pre-tuned classifier params used by evaluate_technical_paper.py.
+    """
+    if not CLINICAL_CSV.exists():
+        pytest.skip("data/clinical.csv absent")
+
+    result = subprocess.run(
+        [
+            sys.executable, "-W", "ignore",
+            "scripts/analysis/ml_evaluation.py",
+            "--dataset", "clinical",
+            "--ml_method", "regression",
+            "--max_trials", "1",
+            "--is_test", "1",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=_SUBPROCESS_ENV,
+        cwd=REPO_ROOT,
+    )
+
+    assert result.returncode == 0, (
+        f"ml_evaluation.py exited {result.returncode}\n--- stderr ---\n{result.stderr[-2000:]}"
     )

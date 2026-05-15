@@ -1,30 +1,16 @@
 import os
-import shutil
 import subprocess
 import sys
 import textwrap
 from pathlib import Path
 
 _REPO = Path(__file__).parent.parent
-_DEFAULT_TOML = _REPO / "models" / "tabsyn" / "baselines" / "tabddpm" / "configs" / "default.toml"
-_BASE_TOML = _REPO / "database" / "dataset" / "config.toml"
 
 _CLINICAL_CSV = _REPO / "data" / "clinical.csv"
 _TVAE_CKPT_DIR = _REPO / "database" / "tabsyn_tvae" / "clinical"
 _TVAE_REQUIRED = ["model.pt", "encoder.pt", "decoder.pt", "train_z.npy"]
 
 _ENV = {**os.environ, "PYTHONPATH": str(_REPO)}
-
-# ---------------------------------------------------------------------------
-# TabDDPM base-config bootstrap
-# ---------------------------------------------------------------------------
-
-def pytest_configure(config):
-    """Bootstrap database/dataset/config.toml from the TabDDPM default template if absent."""
-    if _DEFAULT_TOML.exists() and not _BASE_TOML.exists():
-        _BASE_TOML.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(_DEFAULT_TOML, _BASE_TOML)
-
 
 # ---------------------------------------------------------------------------
 # TabSyn TVAE checkpoint bootstrap
