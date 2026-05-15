@@ -343,11 +343,12 @@ def compute_ml_metrics_all_ml_methods(
             # Added by Minh
             # we deal with imbalanced dataset in phase 3 here
 
-            best_params = fmin["params"]
-            if "device" in fmin:
-                device = fmin["device"]
+            if fmin is None:
+                best_params = {}
+                device = "cpu"
             else:
-                device = "gpu"
+                best_params = fmin["params"]
+                device = fmin.get("device", "gpu")
 
         else:
             best_params = {}

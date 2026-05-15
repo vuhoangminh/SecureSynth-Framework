@@ -51,6 +51,11 @@ class GenericDataset(EvaluatedDataset):
     def _get_class_name(self):
         return self._dataset_name
 
+    def _get_base_path(self):
+        # TabSyn/TabDDPM expect their artefacts under database/dataset/{name}/,
+        # not under the raw data directory (data/).
+        return self._get_path(f"database/dataset/{self._dataset_name}")
+
     def _read_train(self) -> pd.DataFrame:
         cfg = self._cfg.data
         if cfg.format == "parquet":

@@ -211,7 +211,7 @@ def perform_linear_regression(
         from sklearn.linear_model import ElasticNet
 
     if device == "gpu" and use_device == "cpu":
-        raise Warning("Can't import cuml. Use sklearn instead")
+        print("Warning: Can't import cuml. Using sklearn instead.")
 
     if use_device == "gpu":
         params["solver"] = "qn"
@@ -262,7 +262,7 @@ def perform_svm(
         from sklearn.svm import SVR as SVR
 
     if device == "gpu" and use_device == "cpu":
-        raise Warning("Can't import cuml. Use sklearn instead")
+        print("Warning: Can't import cuml. Using sklearn instead.")
 
     print("use_device:", use_device)
 
@@ -308,7 +308,7 @@ def perform_bagging(
         from sklearn.linear_model import ElasticNet
 
     if device == "gpu" and use_device == "cpu":
-        raise Warning("Can't import cuml. Use sklearn instead")
+        print("Warning: Can't import cuml. Using sklearn instead.")
 
     if use_device == "gpu":
         params_bagging["solver"] = "qn"
@@ -369,7 +369,7 @@ def perform_randomforest(
         from sklearn.ensemble import RandomForestRegressor
 
     if device == "gpu" and use_device == "cpu":
-        raise Warning("Can't import cuml. Use sklearn instead")
+        print("Warning: Can't import cuml. Using sklearn instead.")
 
     if use_device == "gpu":
         params.pop("n_jobs", None)

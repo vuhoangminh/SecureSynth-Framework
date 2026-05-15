@@ -456,10 +456,17 @@ def data_suff_check_ctgan(paths):
 
 
 if __name__ == "__main__":
-    general(paths)
-    # data_suff(paths)
-    # data_suff_check_tabsyn(paths)
-    # data_suff_check_ctgan(paths)
+    import argparse as _ap
+
+    _parser = _ap.ArgumentParser()
+    _parser.add_argument("--dataset", type=str, default=None, help="Filter results to a specific dataset")
+    _args = _parser.parse_args()
+
+    _filtered = get_paths(paths, _args.dataset) if _args.dataset else paths
+    general(_filtered)
+    # data_suff(_filtered)
+    # data_suff_check_tabsyn(_filtered)
+    # data_suff_check_ctgan(_filtered)
 
 """
 generate df_score with num_row column

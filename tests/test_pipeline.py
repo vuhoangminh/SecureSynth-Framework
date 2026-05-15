@@ -7,6 +7,9 @@ Skipped automatically when data/clinical.csv is absent (e.g., bare CI).
 
 t019 — run_tabgen.py: CTGAN trains for 5 epochs and writes synthetic_full.csv
 t020 — optimize_ctgan.py: IORBO runs 1 hyperopt trial without error
+t021 — optimize_tabsyn.py: IORBO runs 1 TabSyn trial without error
+t022 — optimize_tabddpm.py: IORBO runs 1 TabDDPM trial without error
+t023 — check_results.py --dataset clinical: ranking output is produced
 """
 
 import os
@@ -108,4 +111,110 @@ def test_optimize_ctgan_one_trial():
 
     assert result.returncode == 0, (
         f"optimize_ctgan.py exited {result.returncode}\n--- stderr ---\n{result.stderr[-2000:]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# t021 — optimize_tabsyn.py: 1 IORBO trial with TabSyn
+# ---------------------------------------------------------------------------
+
+def test_optimize_tabsyn_one_trial():
+    """1 IORBO trial (is_test=1 → 20 epochs TVAE + TabSyn): confirm clean exit."""
+    result = subprocess.run(
+        [
+            sys.executable, "-W", "ignore",
+            "scripts/optimize/optimize_tabsyn.py",
+            "--dataset", "clinical",
+            "--max_trials", "1",
+            "--is_test", "1",
+            "--module", "public",
+            "--loss_version", "0",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+        env=_SUBPROCESS_ENV,
+        cwd=REPO_ROOT,
+    )
+
+    assert result.returncode == 0, (
+        f"optimize_tabsyn.py exited {result.returncode}\n--- stderr ---\n{result.stderr[-2000:]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# t022 — optimize_tabddpm.py: 1 IORBO trial with TabDDPM
+# ---------------------------------------------------------------------------
+
+_TABDDPM_BASE_CONFIG = Path(REPO_ROOT) / "database" / "dataset" / "config.toml"
+
+
+def test_optimize_tabddpm_one_trial():
+    """1 IORBO trial (is_test=1 → 1000 steps): confirm clean exit.
+
+    Requires database/dataset/config.toml (the TabDDPM base template).
+    conftest.py bootstraps this from models/tabsyn/baselines/tabddpm/configs/default.toml
+    if it is absent.
+    """
+    if not _TABDDPM_BASE_CONFIG.exists():
+        pytest.skip(
+            "database/dataset/config.toml not found — "
+            "copy models/tabsyn/baselines/tabddpm/configs/default.toml to create it"
+        )
+
+    result = subprocess.run(
+        [
+            sys.executable, "-W", "ignore",
+            "scripts/optimize/optimize_tabddpm.py",
+            "--dataset", "clinical",
+            "--max_trials", "1",
+            "--is_test", "1",
+            "--module", "public",
+            "--loss_version", "0",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=600,
+        env=_SUBPROCESS_ENV,
+        cwd=REPO_ROOT,
+    )
+
+    assert result.returncode == 0, (
+        f"optimize_tabddpm.py exited {result.returncode}\n--- stderr ---\n{result.stderr[-2000:]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# t023 — check_results.py: ranking output produced for clinical
+# ---------------------------------------------------------------------------
+
+_OPTIMIZATION_DIR = Path(REPO_ROOT) / "database" / "optimization"
+
+
+def test_check_results_produces_output():
+    """check_results.py --dataset clinical: confirm ranking summary is printed."""
+    if not any(_OPTIMIZATION_DIR.glob("*clinical*.hyperopt")):
+        pytest.skip(
+            "No clinical .hyperopt files in database/optimization/ — "
+            "run t021 or t022 first to generate optimization results"
+        )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/optimize/check_results.py",
+            "--dataset", "clinical",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=_SUBPROCESS_ENV,
+        cwd=REPO_ROOT,
+    )
+
+    assert result.returncode == 0, (
+        f"check_results.py exited {result.returncode}\n--- stderr ---\n{result.stderr[-2000:]}"
+    )
+    assert "n_success/n_runs" in result.stdout, (
+        f"Expected ranking summary not found in stdout:\n{result.stdout[-1000:]}"
     )

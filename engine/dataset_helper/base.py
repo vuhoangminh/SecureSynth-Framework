@@ -752,6 +752,9 @@ class EvaluatedDataset(abc.ABC):
         if os.path.exists(path_X_num_train):
             x = np.load(path_X_num_train, allow_pickle=True)
             base_config["num_numerical_features"] = x.shape[1]
+            # TabDDPM asserts num_nan_policy is None when no NaNs are present
+            if not np.isnan(x.astype(float)).any():
+                base_config["train"]["T"]["num_nan_policy"] = None
         else:
             base_config["num_numerical_features"] = 0
 
