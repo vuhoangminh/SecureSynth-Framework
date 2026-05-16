@@ -752,8 +752,13 @@ class EvaluatedDataset(abc.ABC):
         if os.path.exists(path_X_num_train):
             x = np.load(path_X_num_train, allow_pickle=True)
             base_config["num_numerical_features"] = x.shape[1]
+            # base config.toml has num_nan_policy="mean"; tab_ddpm asserts policy is None
+            # when no NaN values are present — override to None for preprocessed datasets
+            if not np.isnan(x).any():
+                base_config["train"]["T"]["num_nan_policy"] = None
         else:
             base_config["num_numerical_features"] = 0
+            base_config["train"]["T"]["num_nan_policy"] = None
 
         if self.output == "regression":
             base_config["model_params"]["is_y_cond"] = False
@@ -819,8 +824,13 @@ class EvaluatedDataset(abc.ABC):
         if os.path.exists(path_X_num_train):
             x = np.load(path_X_num_train, allow_pickle=True)
             base_config["num_numerical_features"] = x.shape[1]
+            # base config.toml has num_nan_policy="mean"; tab_ddpm asserts policy is None
+            # when no NaN values are present — override to None for preprocessed datasets
+            if not np.isnan(x).any():
+                base_config["train"]["T"]["num_nan_policy"] = None
         else:
             base_config["num_numerical_features"] = 0
+            base_config["train"]["T"]["num_nan_policy"] = None
 
         if self.output == "regression":
             base_config["model_params"]["is_y_cond"] = False

@@ -251,6 +251,34 @@ python scripts/analysis/friedman_nemenyi.py
 
 ---
 
+## Known Issues & Fixes
+
+### TabDDPM on preprocessed datasets (fixed 2026-05-16)
+
+Two bugs caused all TabDDPM IORBO trials to silently fail with `loss=inf` when running on generic/preprocessed datasets:
+
+**Bug 1 — `assert policy is None` in `models/tab_ddpm/lib/data.py:185`**
+
+The base `database/dataset/config.toml` sets `[train.T] num_nan_policy = "mean"`. TabDDPM's internal pipeline asserts that this policy is `None` when the input data contains no NaN values. Preprocessed datasets have no NaNs, so the assertion always fired.
+
+*Fix:* `engine/dataset_helper/base.py` — `_prep_tabddpm_config_toml_mlp` and `_prep_tabddpm_config_toml_resnet` now set `num_nan_policy = None` (serialised as `"__none__"`) whenever `X_num_train.npy` contains no NaN values.
+
+**Bug 2 — `ModuleNotFoundError: No module named 'models'` in `pipeline.py` subprocess**
+
+`optimize_tabddpm.py` launches `pipeline.py` via `subprocess.run`. The subprocess did not inherit `PYTHONPATH=.`, so `from models.tab_ddpm.tab_ddpm import ...` failed at import time.
+
+*Fix:* `scripts/optimize/optimize_tabddpm.py` — added `env={**os.environ, "PYTHONPATH": "."}` to the `subprocess.run` call.
+
+> **Debugging tip:** Both errors are swallowed by the hyperopt objective's `except Exception`. If all TabDDPM trials return `loss=inf`, inspect the stored reason:
+> ```python
+> import pickle
+> with open("database/optimization/<name>.hyperopt", "rb") as f:
+>     trials = pickle.load(f)
+> print(trials.trials[0]["result"]["reason"])
+> ```
+
+---
+
 ## Citation
 
 If you use this work, please cite:

@@ -380,6 +380,10 @@ def compute_cramer(df, col1, col2):
     import researchpy
 
     crosstab, res = researchpy.crosstab(df[col1], df[col2], test="chi-square")
+    # researchpy returns <3 rows when a column is degenerate (single unique value);
+    # chi-square is undefined in that case — return NaN, caller skips NaN pairs
+    if len(res) < 3:
+        return np.nan
     s = res.iloc[2]["results"]
     return s
 

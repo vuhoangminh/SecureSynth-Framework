@@ -287,12 +287,15 @@ def objective(params):
 
         # os.system(cmd)
 
+        # PYTHONPATH must be set explicitly — pipeline.py imports from models.tab_ddpm.*
+        # which requires the repo root on sys.path; subprocess does not inherit it otherwise
         result = subprocess.run(
             cmd,
             shell=True,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env={**os.environ, "PYTHONPATH": "."},
         )
 
         # If you need to print or use the output, use result.stdout.decode()
