@@ -1,1 +1,1 @@
-../../obsidian-clean/projects/research/SecureSynth-Framework/claude/repo_map.md
+../../obsidian/projects/research/SecureSynth-Framework/claude/repo_map.md

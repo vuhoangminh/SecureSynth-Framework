@@ -1,1 +1,1 @@
-../../obsidian-clean/projects/research/SecureSynth-Framework/docs/generic-dataset-bugs-and-failures.md
+../../obsidian/projects/research/SecureSynth-Framework/docs/generic-dataset-bugs-and-failures.md

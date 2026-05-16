@@ -1,1 +1,1 @@
-../../obsidian-clean/projects/research/SecureSynth-Framework/claude/tasks.md
+../../obsidian/projects/research/SecureSynth-Framework/claude/tasks.md
