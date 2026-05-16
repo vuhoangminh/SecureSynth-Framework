@@ -88,6 +88,27 @@ class GenericDataset(EvaluatedDataset):
                 type_cols[col] = "continuous" if n_unique > 15 else "discrete"
         return type_cols
 
+    def postprocess_synthetic(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply TOML [postprocessing].constraints to a decoded synthetic DataFrame.
+
+        Each constraint is a pandas df.query() expression. Rows that violate any
+        constraint are dropped. Logs dropped counts per constraint.
+        """
+        constraints = self._cfg.postprocessing.constraints
+        if not constraints:
+            return df
+        n_before = len(df)
+        for constraint in constraints:
+            n_pre = len(df)
+            df = df.query(constraint)
+            n_dropped = n_pre - len(df)
+            if n_dropped:
+                print(f"postprocess: dropped {n_dropped} rows violating '{constraint}'")
+        n_total_dropped = n_before - len(df)
+        if n_total_dropped:
+            print(f"postprocess: {n_before} → {len(df)} rows ({n_total_dropped} dropped total)")
+        return df.reset_index(drop=True)
+
     def _prep_ctab(self):
         # CTAB-GAN params are normally loaded from database/dataset/ctab_columns.json
         # which only covers biobank datasets. Set safe defaults for generic datasets.

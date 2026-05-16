@@ -6,6 +6,7 @@ Covers:
   t016 — _get_type_columns() auto-detect: n_unique > 15 → continuous, else discrete
   t017 — load_config() validation: ValueError for missing [data], target, task
   t018 — dynamic registry: configs/dummy.toml → get_dataset('dummy') with no code changes
+  t036 — postprocess_synthetic(): df.query() constraints drop violating rows; no constraints → no-op
 """
 
 import os
@@ -195,3 +196,75 @@ class TestDynamicRegistry:
         assert ds.data.shape[0] == n
         assert set(ds.columns) == {"feature_a", "feature_b", "outcome"}
         assert ds.target == "outcome"
+
+
+# ---------------------------------------------------------------------------
+# t036 — postprocess_synthetic()
+# ---------------------------------------------------------------------------
+
+class TestPostprocessSynthetic:
+    """postprocess_synthetic() applies df.query() constraints; no constraints → no-op."""
+
+    def _load_with_constraints(self, tmp_path, monkeypatch, constraints):
+        rng = np.random.default_rng(0)
+        n = 40
+        df = pd.DataFrame({
+            "age":          rng.integers(10, 90, n).astype(float),
+            "systolic_bp":  rng.integers(100, 180, n).astype(float),
+            "diastolic_bp": rng.integers(60, 120, n).astype(float),
+            "label":        rng.integers(0, 2, n),
+        })
+        (tmp_path / "data").mkdir(exist_ok=True)
+        df.to_csv(tmp_path / "data" / "pp.csv", index=False)
+
+        constraint_lines = (
+            "constraints = [\n"
+            + "".join(f'    "{c}",\n' for c in constraints)
+            + "]"
+            if constraints else "constraints = []"
+        )
+        toml = (
+            '[data]\npath = "data/pp.csv"\nformat = "csv"\n\n'
+            '[columns]\ncontinuous = ["age", "systolic_bp", "diastolic_bp"]\n'
+            'discrete = []\ntarget = "label"\ntask = "classification"\n\n'
+            f"[postprocessing]\n{constraint_lines}\n"
+        )
+        (tmp_path / "configs").mkdir(exist_ok=True)
+        (tmp_path / "configs" / "pp.toml").write_text(toml)
+        (tmp_path / "database" / "dataset" / "pp").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        from engine.datasets import get_dataset
+        return get_dataset("pp"), df
+
+    def test_single_constraint_drops_violating_rows(self, tmp_path, monkeypatch):
+        ds, df_orig = self._load_with_constraints(
+            tmp_path, monkeypatch, ["age >= 18"]
+        )
+        synthetic = df_orig.copy()
+        result = ds.postprocess_synthetic(synthetic)
+        assert (result["age"] >= 18).all()
+        assert len(result) == (df_orig["age"] >= 18).sum()
+
+    def test_multiple_constraints_applied_in_sequence(self, tmp_path, monkeypatch):
+        ds, df_orig = self._load_with_constraints(
+            tmp_path, monkeypatch,
+            ["age >= 18", "diastolic_bp < systolic_bp"],
+        )
+        synthetic = df_orig.copy()
+        result = ds.postprocess_synthetic(synthetic)
+        assert (result["age"] >= 18).all()
+        assert (result["diastolic_bp"] < result["systolic_bp"]).all()
+
+    def test_no_constraints_returns_unchanged(self, tmp_path, monkeypatch):
+        ds, df_orig = self._load_with_constraints(tmp_path, monkeypatch, [])
+        synthetic = df_orig.copy()
+        result = ds.postprocess_synthetic(synthetic)
+        assert len(result) == len(df_orig)
+
+    def test_output_index_is_reset(self, tmp_path, monkeypatch):
+        ds, df_orig = self._load_with_constraints(
+            tmp_path, monkeypatch, ["age >= 18"]
+        )
+        result = ds.postprocess_synthetic(df_orig.copy())
+        assert list(result.index) == list(range(len(result)))
