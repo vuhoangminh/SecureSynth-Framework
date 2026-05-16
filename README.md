@@ -29,7 +29,7 @@ This work builds on our prior **TabGen-Framework** ([github.com/vuhoangminh/TabG
 
 ### 1. Privacy-Aware Synthesis Framework
 
-Open-source, Docker-containerized pipeline. A single configuration file specifies dataset attributes, preprocessing rules, and privacy constraints, enabling reproducible deployment across institutions.
+Open-source, Docker-containerized pipeline. A single configuration file specifies dataset attributes, preprocessing rules, and privacy constraints, enabling reproducible deployment across institutions. See [`configs/README.md`](configs/README.md) for a full field-by-field reference.
 
 ### 2. Biomedical Data-Handling & Evaluation Framework
 
@@ -283,13 +283,19 @@ The base `database/dataset/config.toml` sets `[train.T] num_nan_policy = "mean"`
 
 If you use this work, please cite:
 
+> Vu, M.H., Edler, D., Wibom, C. et al. Anonymization and visualization of health data and biomarkers. *npj Digit. Med.* **9**, 347 (2026). https://doi.org/10.1038/s41746-026-02662-x
+
 ```bibtex
-@article{vu2026b,
-  title       = {Anonymization and Visualization of Health Data and Biomarkers},
-  author      = {Vu, Minh H. and Edler, Daniel and Wibom, Carl and Rosvall, Martin and Melin, Beatrice},
-  institution = {Umeå University},
-  year        = {2026},
-  url         = {https://github.com/vuhoangminh/SecureSynth-Framework},
+@article{vu2026anonymization,
+  title     = {Anonymization and visualization of health data and biomarkers},
+  author    = {Vu, Minh H and Edler, Daniel and Wibom, Carl and Rosvall, Martin and Melin, Beatrice},
+  journal   = {npj Digital Medicine},
+  volume    = {9},
+  number    = {1},
+  pages     = {347},
+  year      = {2026},
+  publisher = {Nature Publishing Group UK London},
+  doi       = {10.1038/s41746-026-02662-x},
 }
 ```
 

@@ -1,0 +1,1 @@
+../../obsidian/projects/research/SecureSynth-Framework/docs/one-click-pipeline-plan.md
