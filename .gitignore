@@ -152,7 +152,6 @@ database/runs_test/
 database/gan/
 database/gan_optimize/
 database/optimization/
-database/optimization_ml_method/
 database/synthetic/
 *.lock
 *.npy
