@@ -38,7 +38,7 @@ Four integrated components:
 - **Robust preprocessing** — handles missingness rates from 0.4% to 90% via median imputation, quantile transformations, and explicit missingness indicators; substantially outperforms standard constant-value imputation.
 - **Formal DP training** — formal differential privacy (Rényi DP accounting via opacus) for select DGMs, combined with empirical privacy risk evaluation (heuristic matching, SDMetrics Disclosure Protection score).
 - **Data-sufficiency analysis** — identifies minimum sample sizes for reliable training across models and dataset levels (TabSyn: ~30,000 records; CTGAN/TVAE: ~40,000–60,000).
-- **Postprocessing & rejection sampling** — enforces expert-defined correlations and logical constraints (e.g., no male patients assigned breast cancer), ensuring clinical plausibility of synthetic outputs.
+- **Postprocessing & rejection sampling** — enforces expert-defined correlations and logical constraints (e.g., no female patients assigned prostate cancer, no male patients assigned ovarian cancer), ensuring clinical plausibility of synthetic outputs.
 
 ### 3. Interactive Visualization Tool
 
