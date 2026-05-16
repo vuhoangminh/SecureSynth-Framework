@@ -225,10 +225,10 @@ class EvaluatedDataset(abc.ABC):
 
         folder = self._get_dataset_folder()[0]
 
-        self.pkl_path = "database/dataset/{}/{}_index.pkl".format(
+        self.pkl_path = "database/prepared/{}/{}_index.pkl".format(
             folder, self._get_class_name()
         )
-        self.label_encoder_path = "database/dataset/{}/{}_label_encoder.pkl".format(
+        self.label_encoder_path = "database/prepared/{}/{}_label_encoder.pkl".format(
             folder, self._get_class_name()
         )
 
@@ -408,7 +408,7 @@ class EvaluatedDataset(abc.ABC):
 
         # Check if the index file exists
         if is_test:
-            self.pkl_path = "database/dataset/test_{}_index.pkl".format(
+            self.pkl_path = "database/prepared/test_{}_index.pkl".format(
                 self._get_class_name()
             )
 
@@ -739,7 +739,7 @@ class EvaluatedDataset(abc.ABC):
                 json.dump(d, fp, indent=4, separators=(",", ": "))
 
     def _prep_tabddpm_config_toml_mlp(self):
-        base_config = lib.load_config(self._get_path("database/dataset/config.toml"))
+        base_config = lib.load_config(self._get_path("database/prepared/config.toml"))
         base_config["parent_dir"] = ""
 
         cwd = os.getcwd()
@@ -811,7 +811,7 @@ class EvaluatedDataset(abc.ABC):
         """
 
     def _prep_tabddpm_config_toml_resnet(self):
-        base_config = lib.load_config(self._get_path("database/dataset/config.toml"))
+        base_config = lib.load_config(self._get_path("database/prepared/config.toml"))
         base_config["parent_dir"] = ""
 
         cwd = os.getcwd()
@@ -907,7 +907,7 @@ class TabDDPMDataset(EvaluatedDataset):
         raise NotImplementedError("Derived classes must implement this method")
 
     def _get_tabddpm_data_path(self, path):
-        return path.replace("database/dataset", "database/dataset/tab_ddpm")
+        return path.replace("database/prepared", "database/prepared/tab_ddpm")
 
     def _get_output(self):
         raise NotImplementedError("Derived classes must implement this method")
@@ -1040,7 +1040,7 @@ class TabDDPMDataset(EvaluatedDataset):
         return array_m, array_p, np.squeeze(array_q, axis=-1)
 
     def _prep_ctab(self):
-        filename = "database/dataset/ctab_columns.json"
+        filename = "database/prepared/ctab_columns.json"
         with open(filename, "r") as f:
             ctab_columns = json.load(f)
         ctabgan_params = ctab_columns[

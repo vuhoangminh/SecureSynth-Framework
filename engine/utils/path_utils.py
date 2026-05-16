@@ -9,6 +9,8 @@ Copyright (c) 2023, Vu Hoang Minh. All rights reserved.
 
 import os
 import ntpath
+import warnings
+from pathlib import Path
 from engine.utils.print_utils import print_separator
 import glob
 
@@ -76,6 +78,11 @@ def get_modality(path, ext=".nii.gz"):
     return modality
 
 
+def get_run_dir(dataset: str, model: str, loss: str, trial_n: int, is_test: bool = False) -> Path:
+    base = "database/runs_test" if is_test else "database/runs"
+    return Path(base) / f"{dataset}-{model}-{loss}" / f"trial_{trial_n:04d}"
+
+
 def get_hyperopt_path(project_name, database_path="database", folder="optimization"):
     save_path = database_path + f"/{folder}"
     make_dir(save_path)
@@ -121,6 +128,11 @@ def get_folder(args):
 
 
 def get_folder_technical_paper(args):
+    warnings.warn(
+        "get_folder_technical_paper() is deprecated; use get_run_dir() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     loss_version = args.loss_version
 
     if args.is_test:
