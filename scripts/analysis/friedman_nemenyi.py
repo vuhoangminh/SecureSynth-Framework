@@ -1247,26 +1247,21 @@ def get_rankings(
     path_df_score="database/results/biobank_compare_gmdp.csv",
     is_return_metric_ranking=False,
     list_fail_model_dataset=None,
+    models=None,
+    condvecs=None,
 ):
+
+    _models = models if models is not None else [
+        "ctgan", "copulagan", "dpcgans", "ctab", "tvae", "tabddpm", "tabsyn"
+    ]
+    _condvecs = condvecs if condvecs is not None else [0, 1]
 
     R = {}
     R_metric = {}
 
     for dataset in datasets:
-        for models in [
-            [
-                "ctgan",
-                "copulagan",
-                "dpcgans",
-                "ctab",
-                "tvae",
-                "tabddpm",
-                "tabsyn",
-            ]
-        ]:
-            for condvecs in [
-                [0, 1],
-            ]:
+        for models in [_models]:
+            for condvecs in [_condvecs]:
 
                 for model_types in [
                     ["mlp", "resnet"],
@@ -1975,7 +1970,47 @@ def run_data_sufficient():
     # R = get_rankings()
 
 
+def run_ranking_clinical(
+    datasets=None,
+    models=None,
+    condvecs=None,
+    dir="database/optimization",
+    path_df_score="database/results/clinical_compare_gmdp.csv",
+):
+    """Rank models on generic (non-biobank) datasets using existing .hyperopt files.
+
+    Defaults to the clinical dry-run setup: 5 models, condvec=1 only.
+    Friedman-Nemenyi p-values are only meaningful with ≥3 datasets.
+    """
+    if datasets is None:
+        datasets = ["test_clinical"]
+    if models is None:
+        models = ["ctgan", "copulagan", "tvae", "tabddpm", "tabsyn"]
+    if condvecs is None:
+        condvecs = [1]
+
+    import os
+    os.makedirs("database/results", exist_ok=True)
+
+    write_df_ranking(
+        datasets=datasets,
+        models=models,
+        condvecs=condvecs,
+        dir=dir,
+        path_df_score=path_df_score,
+    )
+
+    R = get_rankings(
+        datasets=datasets,
+        models=models,
+        condvecs=condvecs,
+        path_df_score=path_df_score,
+    )
+    return R
+
+
 if __name__ == "__main__":
     # run_ranking()
     run_runtime()
     # run_data_sufficient()
+    # run_ranking_clinical()
