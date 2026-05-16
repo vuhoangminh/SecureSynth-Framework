@@ -615,11 +615,11 @@ class EvaluatedDataset(abc.ABC):
         for col in num_columns:
             train_df.loc[train_df[col] == "?", col] = np.nan
         for col in cat_columns:
-            train_df.loc[train_df[col] == "?", col] = "nan"
+            train_df.loc[train_df[col] == "?", col] = np.nan
         for col in num_columns:
             test_df.loc[test_df[col] == "?", col] = np.nan
         for col in cat_columns:
-            test_df.loc[test_df[col] == "?", col] = "nan"
+            test_df.loc[test_df[col] == "?", col] = np.nan
 
         train_df[num_columns] = train_df[num_columns].astype(np.float32)
         test_df[num_columns] = test_df[num_columns].astype(np.float32)
