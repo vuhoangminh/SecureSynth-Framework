@@ -319,7 +319,7 @@ def init_search_space(args):
         epochs_choices_big_datasets_ctab = list(range(100, 401, 100))
 
     if args.is_test:
-        search_space = {"epochs": hp.choice("epochs", [100])}
+        search_space = {"epochs": hp.choice("epochs", [20])}
 
         if args.arch == "ctab":
             search_space["batch_size"] = hp.choice("batch_size", [1000])
@@ -486,13 +486,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--module",
-        default="public",
+        default="gmdp",
         choices=[
-            "public",
             "gm",
             "dp",
             "gmdp",
-        ],  # dp and gmdp are only for sensitive data
+        ],
     )
 
     # generate subsets of a pandas DataFrame by subsampling rows and shuffling columns before sampling
