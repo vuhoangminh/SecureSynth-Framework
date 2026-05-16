@@ -145,14 +145,20 @@ dmypy.json
 
 
 # database/compiled.tsv
-database/dataset/
-!database/dataset/*.pkl
+database/raw/
+database/prepared/
+database/runs/
+database/runs_test/
+database/gan/
+database/gan_optimize/
+database/optimization/
+database/synthetic/
 *.lock
 *.npy
 *.pickle
 *.toml
 !configs/*.toml
-data/
+
 output/
 *.data
 *.names

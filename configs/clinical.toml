@@ -1,5 +1,5 @@
 [data]
-path = "data/clinical.csv"
+path = "database/raw/clinical.csv"
 format = "csv"
 drop_columns = ["patient_id"]
 
