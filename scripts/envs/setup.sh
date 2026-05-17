@@ -29,6 +29,7 @@ pip install autoflake
 pip install termcolor
 pip install hyperopt
 pip install sdv==1.8.0
+pip install rdt==1.21.0 "numpy==1.26.4"
 pip install wandb
 pip uninstall -y torch
 pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu116

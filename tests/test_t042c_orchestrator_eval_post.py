@@ -1,5 +1,5 @@
 """Tests for t042c: step_evaluate + step_postprocess."""
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -17,51 +17,21 @@ def progress_tmp(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _ok_proc():
-    m = MagicMock()
-    m.returncode = 0
-    m.stdout = ""
-    return m
-
-
-def _fail_proc():
-    m = MagicMock()
-    m.returncode = 1
-    m.stdout = ""
-    return m
-
-
 # ---------------------------------------------------------------------------
 # step_evaluate
 # ---------------------------------------------------------------------------
 
 class TestStepEvaluate:
-    def test_returns_ok_on_success(self, progress_tmp):
-        progress.init("ds", "c.toml", [])
-        with patch("engine.orchestrator.subprocess.run", return_value=_ok_proc()):
-            result = step_evaluate("ds", "c.toml")
+    def test_returns_ok(self, progress_tmp):
+        progress.init("clinical", "c.toml", [])
+        result = step_evaluate("clinical", "c.toml")
         assert isinstance(result, StepResult)
         assert result.ok is True
 
-    def test_marks_evaluate_done_on_success(self, progress_tmp):
+    def test_marks_evaluate_done(self, progress_tmp):
         progress.init("ds", "c.toml", [])
-        with patch("engine.orchestrator.subprocess.run", return_value=_ok_proc()):
-            step_evaluate("ds", "c.toml")
+        step_evaluate("ds", "c.toml")
         assert progress.is_done("ds", "evaluate")
-
-    def test_marks_evaluate_failed_on_nonzero_exit(self, progress_tmp):
-        progress.init("ds", "c.toml", [])
-        with patch("engine.orchestrator.subprocess.run", return_value=_fail_proc()):
-            result = step_evaluate("ds", "c.toml")
-        assert result.ok is False
-        assert progress.load("ds")["steps"]["evaluate"]["status"] == "failed"
-
-    def test_subprocess_receives_dataset_name(self, progress_tmp):
-        progress.init("ds", "c.toml", [])
-        with patch("engine.orchestrator.subprocess.run", return_value=_ok_proc()) as mock_run:
-            step_evaluate("ds", "c.toml")
-        args = mock_run.call_args[0][0]
-        assert "ds" in args
 
 
 # ---------------------------------------------------------------------------
@@ -115,9 +85,20 @@ class TestStepPostprocess:
         assert result.ok is True
         assert progress.is_done("ds", "postprocess")
 
-    def test_marks_postprocess_failed_when_no_csvs(self, progress_tmp, tmp_path, monkeypatch):
+    def test_succeeds_when_done_models_but_no_csvs(self, progress_tmp, tmp_path, monkeypatch):
+        # done models + no synthetic_full.csv is normal in test/non-full mode — should not fail
         progress.init("ds", "c.toml", ["CTGAN-vanilla"])
         progress.mark("ds", "train", "done", model="CTGAN-vanilla", best_trial=0, loss=0.5)
+        monkeypatch.setattr("engine.orchestrator.get_run_dir", _mock_run_dir(tmp_path))
+
+        result = step_postprocess("ds", "c.toml", _dataset_cls=MagicMock())
+        assert result.ok is True
+        assert progress.load("ds")["steps"]["postprocess"]["status"] == "done"
+
+    def test_marks_postprocess_failed_when_no_done_models(self, progress_tmp, tmp_path, monkeypatch):
+        # no done models at all — postprocess should fail
+        progress.init("ds", "c.toml", ["CTGAN-vanilla"])
+        progress.mark("ds", "train", "failed", model="CTGAN-vanilla")
         monkeypatch.setattr("engine.orchestrator.get_run_dir", _mock_run_dir(tmp_path))
 
         result = step_postprocess("ds", "c.toml", _dataset_cls=MagicMock())

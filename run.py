@@ -348,6 +348,8 @@ def run_pipeline(
             else:
                 result = result_box[0]
                 ok = result.ok if hasattr(result, "ok") else bool(result)
+                if not ok and hasattr(result, "error") and result.error:
+                    logger.error(f"ERROR {label}: {result.error}")
 
             status = "done" if ok else "failed"
             summary[label] = {"status": status, "duration": duration, "loss": None}
