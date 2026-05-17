@@ -11,13 +11,13 @@ def get_input_train(args):
     dataname = args.dataname
 
     curr_dir = os.path.dirname(os.path.abspath(__file__))
-    dataset_dir = f"database/dataset/{dataname}"
+    dataset_dir = f"database/prepared/{dataname}"
 
     with open(f"{dataset_dir}/info.json", "r") as f:
         info = json.load(f)
 
     # ckpt_dir = f"{curr_dir}/ckpt/{dataname}/"
-    ckpt_dir = f"database/tabsyn_tvae/{dataname}"
+    ckpt_dir = f"database/prepared/{dataname}"
 
     if args.row_number is not None:
         embedding_save_path = f"{ckpt_dir}/train_z_rownum-{args.row_number}.npy"
@@ -38,14 +38,14 @@ def get_input_train(args):
 def get_input_generate(args):
     dataname = args.dataname
 
-    dataset_dir = f"database/dataset/{dataname}"
+    dataset_dir = f"database/prepared/{dataname}"
 
     with open(f"{dataset_dir}/tabsyn_info.json", "r") as f:
         info = json.load(f)
 
     task_type = info["task_type"]
 
-    ckpt_dir = f"database/tabsyn_tvae/{dataname}"
+    ckpt_dir = f"database/prepared/{dataname}"
 
     _, _, categories, d_numerical, num_inverse, cat_inverse = preprocess(
         dataset_dir,

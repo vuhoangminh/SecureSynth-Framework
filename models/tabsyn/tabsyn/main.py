@@ -21,7 +21,7 @@ def main(args):
     setattr(args, "dataset", getattr(args, "dataname"))
     setattr(args, "epochs", getattr(args, "num_epochs"))
 
-    dir_logs = os.path.join(args.dir_logs, path_utils.get_folder_technical_paper(args))
+    dir_logs = args.dir_logs
     print(dir_logs)
 
     train_z, _, _, _, _ = get_input_train(args)

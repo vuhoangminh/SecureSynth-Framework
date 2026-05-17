@@ -185,9 +185,9 @@ def objective(params):
             )
 
         if args.row_number is not None:
-            _cmd = f"python -W ignore models/tabsyn/main.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}  --row_number {args.row_number}"
+            _cmd = f"python -W ignore models/tabsyn/main.py --dir_logs {dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}  --row_number {args.row_number}"
         else:
-            _cmd = f"python -W ignore models/tabsyn/main.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}"
+            _cmd = f"python -W ignore models/tabsyn/main.py --dir_logs {dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}"
 
         cmd_train = update_cmd(params, _cmd)
 
@@ -214,7 +214,7 @@ def objective(params):
         # If you need to print or use the output, use result.stdout.decode()
         print(result.stdout.decode())
 
-        data_path = f"database/dataset/{args.dataset}/temp"
+        data_path = f"database/prepared/{args.dataset}/temp"
         save_preprocessed(data_path, dir_logs, args.row_number)
 
         # sample

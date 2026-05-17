@@ -65,7 +65,7 @@ def compute_loss(X_num, X_cat, Recon_X_num, Recon_X_cat, mu_z, logvar_z):
 
 def main(args):
     dataname = args.dataname
-    data_dir = f"database/dataset/{dataname}"
+    data_dir = f"database/prepared/{dataname}"
 
     max_beta = args.max_beta
     min_beta = args.min_beta
@@ -73,13 +73,13 @@ def main(args):
 
     device = args.device
 
-    info_path = f"database/dataset/{dataname}/tabsyn_info.json"
+    info_path = f"database/prepared/{dataname}/tabsyn_info.json"
 
     with open(info_path, "r") as f:
         info = json.load(f)
 
     ## Added by Minh
-    ckpt_dir = f"database/tabsyn_tvae/{dataname}"
+    ckpt_dir = f"database/prepared/{dataname}"
     ## Added by Minh
 
     if not os.path.exists(ckpt_dir):

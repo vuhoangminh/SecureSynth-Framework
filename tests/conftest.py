@@ -6,8 +6,8 @@ from pathlib import Path
 
 _REPO = Path(__file__).parent.parent
 
-_CLINICAL_CSV = _REPO / "data" / "clinical.csv"
-_TVAE_CKPT_DIR = _REPO / "database" / "tabsyn_tvae" / "clinical"
+_CLINICAL_CSV = _REPO / "database" / "raw" / "clinical.csv"
+_TVAE_CKPT_DIR = _REPO / "database" / "prepared" / "clinical"
 _TVAE_REQUIRED = ["model.pt", "encoder.pt", "decoder.pt", "train_z.npy"]
 
 _ENV = {**os.environ, "PYTHONPATH": str(_REPO)}
