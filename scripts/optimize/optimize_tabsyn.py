@@ -235,6 +235,7 @@ def objective(params):
             discrete_columns,
             continuous_columns,
             mode="last",
+            dir_logs=dir_logs,
         )
         df_score = df_score.drop(df_score.columns[:6], axis=1)  # Drop first 6 columns
         df_score = df_score.drop(df_score.columns[-2:], axis=1)  # Drop last 2 columns
@@ -245,6 +246,7 @@ def objective(params):
             folder,
             mode="last",
             task="single",
+            dir_logs=dir_logs,
         )
         df_score_ml = df_score_ml.drop(df_score_ml.columns[:6], axis=1)
 
@@ -254,6 +256,7 @@ def objective(params):
             folder,
             mode="last",
             task="augment",
+            dir_logs=dir_logs,
         )
         df_score_augment = df_score_augment.drop(df_score_augment.columns[:6], axis=1)
 
@@ -264,6 +267,7 @@ def objective(params):
                 folder,
                 key_fields=D.key_fields,
                 sensitive_fields=D.sensitive_fields,
+                dir_logs=dir_logs,
             )
             df_score_dp = df_score_dp.drop(df_score_dp.columns[:6], axis=1)
         else:

@@ -122,8 +122,10 @@ def compute_statistical_metrics(
     mode="optimal",
     df_real=None,
     df_fake=None,
+    dir_logs=None,
 ):
-    dir_logs = os.path.join(f"database/gan_optimize/{folder}")
+    if dir_logs is None:
+        dir_logs = os.path.join(f"database/gan_optimize/{folder}")
 
     if df_real is None:
         df_real = pd.read_csv(
@@ -141,7 +143,7 @@ def compute_statistical_metrics(
 
     if df_fake is None:
         df_fake = pd.read_csv(
-            f"database/gan_optimize/{folder}/{path_utils.get_filename(filename)}",
+            os.path.join(dir_logs, path_utils.get_filename(filename)),
             sep="\t",
             header=0,
             index_col=0,
@@ -281,6 +283,7 @@ def compute_ml_metrics_all_ml_methods(
         "path": "database/optimization_ml_method",
     },
     df_fake=None,
+    dir_logs=None,
 ):
     def f(x, y, task):
         if task == "single":
@@ -288,7 +291,8 @@ def compute_ml_metrics_all_ml_methods(
         else:
             return y - x  # higher is better except for regression (mae + mse)
 
-    dir_logs = os.path.join(f"database/gan_optimize/{folder}")
+    if dir_logs is None:
+        dir_logs = os.path.join(f"database/gan_optimize/{folder}")
 
     if mode == "optimal":
         filename = config.LIST_BEST[folder]
@@ -297,7 +301,7 @@ def compute_ml_metrics_all_ml_methods(
 
     if df_fake is None:
         df_fake = pd.read_csv(
-            f"database/gan_optimize/{folder}/{path_utils.get_filename(filename)}",
+            os.path.join(dir_logs, path_utils.get_filename(filename)),
             sep="\t",
             header=0,
             index_col=0,
@@ -434,8 +438,10 @@ def compute_dp_metrics(
     key_fields,
     sensitive_fields,
     df_fake=None,
+    dir_logs=None,
 ):
-    dir_logs = os.path.join(f"database/gan_optimize/{folder}")
+    if dir_logs is None:
+        dir_logs = os.path.join(f"database/gan_optimize/{folder}")
     _, filename = path_utils.find_non_largest_csv_files(dir_logs)
     scores, dataset = init_score(folder, filename)
 
@@ -444,7 +450,7 @@ def compute_dp_metrics(
 
     if df_fake is None:
         df_fake = pd.read_csv(
-            f"database/gan_optimize/{folder}/{path_utils.get_filename(filename)}",
+            os.path.join(dir_logs, path_utils.get_filename(filename)),
             sep="\t",
             header=0,
             index_col=0,
