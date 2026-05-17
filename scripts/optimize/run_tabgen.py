@@ -316,7 +316,8 @@ def main():
         args.is_loss_corr = 0
         args.is_loss_dwp = 0
 
-    args.dir_logs = str(path_utils.get_run_dir(args.dataset, args.arch, f"lv{args.loss_version}", args.trial_n, bool(args.is_test)))
+    _arch_key = args.arch if args.is_condvec else f"{args.arch}0"
+    args.dir_logs = str(path_utils.get_run_dir(args.dataset, _arch_key, f"lv{args.loss_version}", args.trial_n, bool(args.is_test)))
     print(f">> logging to {args.dir_logs}")
 
     path_utils.make_dir(args.dir_logs)

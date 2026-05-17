@@ -1,5 +1,6 @@
 import os
 import json
+import sys
 import time
 import argparse
 import subprocess
@@ -162,9 +163,9 @@ def objective(params):
         )
 
         if args.row_number is not None:
-            cmd_tvae = f"python -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --row_number {args.row_number}--batch_size_tvae {batch_size_tvae}"
+            cmd_tvae = f"{sys.executable} -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --row_number {args.row_number}--batch_size_tvae {batch_size_tvae}"
         else:
-            cmd_tvae = f"python -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --batch_size_tvae {batch_size_tvae}"
+            cmd_tvae = f"{sys.executable} -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --batch_size_tvae {batch_size_tvae}"
 
         try:
             result_tvae = subprocess.run(
@@ -185,9 +186,9 @@ def objective(params):
             )
 
         if args.row_number is not None:
-            _cmd = f"python -W ignore models/tabsyn/main.py --dir_logs {dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}  --row_number {args.row_number}"
+            _cmd = f"{sys.executable} -W ignore models/tabsyn/main.py --dir_logs {dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}  --row_number {args.row_number}"
         else:
-            _cmd = f"python -W ignore models/tabsyn/main.py --dir_logs {dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}"
+            _cmd = f"{sys.executable} -W ignore models/tabsyn/main.py --dir_logs {dir_logs} --is_test {args.is_test} --dataname {args.dataset} --arch {args.arch} --loss_version {args.loss_version}"
 
         cmd_train = update_cmd(params, _cmd)
 
@@ -211,8 +212,9 @@ def objective(params):
                 loss, reason, params, None, None, None, None, None
             )
 
-        # If you need to print or use the output, use result.stdout.decode()
-        print(result.stdout.decode())
+        with open(os.path.join(dir_logs, "training_log.txt"), "w") as _logf:
+            _logf.write(result.stdout.decode())
+            _logf.write(result.stderr.decode())
 
         data_path = f"database/prepared/{args.dataset}/temp"
         save_preprocessed(data_path, dir_logs, args.row_number)
@@ -222,7 +224,13 @@ def objective(params):
 
         os.system(cmd_sample)
 
-        folder = path_utils.get_filename(dir_logs)
+        _pre = "test-" if args.is_test else ""
+        if args.loss_version == 0:
+            folder = f"{_pre}{args.dataset}-{args.arch}-lv_0-condvec_{args.is_condvec}"
+        else:
+            _lc = params.get('is_loss_corr', 0.0)
+            _ld = params.get('is_loss_dwp', 0.0)
+            folder = f"{_pre}{args.dataset}-{args.arch}-lv_{args.loss_version}-losscorcorr_{_lc:.2e}-lossdis_{_ld:.2e}-condvec_{args.is_condvec}"
         discrete_columns = D.discrete_columns
         continuous_columns = [
             c for c in list(D.data_train) if c not in discrete_columns

@@ -30,14 +30,19 @@ MODEL_TO_OPTIMIZER = {
 }
 
 
-def _best_from_hyperopt(dataset: str, arch: str, loss_version: int, is_test: bool, condvec: int = 1):
+def _best_from_hyperopt(dataset: str, arch: str, loss_version: int, is_test: bool, condvec: int = 1, module: str = "gmdp"):
     """Return (best_trial_index, best_loss) by reading the hyperopt pickle."""
     from engine.utils import hyperopt_utils, path_utils
+    import os
 
-    filename = f"{dataset}_{arch}_loss_version-{loss_version}-{condvec}"
+    base = f"{dataset}_{arch}_loss_version-{loss_version}-{condvec}"
     if is_test:
-        filename = "test_" + filename
-    hp_path = path_utils.get_hyperopt_path(filename, folder="optimization/generative_model")
+        base = "test_" + base
+    # Try with module suffix first (current format), then without (legacy)
+    for suffix in [f"_module-{module}", ""]:
+        hp_path = path_utils.get_hyperopt_path(base + suffix, folder="optimization/generative_model")
+        if os.path.exists(hp_path):
+            break
 
     trials = hyperopt_utils.load_project(hp_path, is_print=False)
     best_trial, best_loss = 0, float("inf")
@@ -97,7 +102,8 @@ def main():
         print(f"WARNING: could not read hyperopt result: {exc}", file=sys.stderr)
         best_trial, best_loss = 0, float("inf")
 
-    print(json.dumps({"best_trial": best_trial, "loss": best_loss}))
+    loss_out = best_loss if not (best_loss != best_loss or best_loss == float("inf")) else None
+    print(json.dumps({"best_trial": best_trial, "loss": loss_out}))
 
 
 if __name__ == "__main__":

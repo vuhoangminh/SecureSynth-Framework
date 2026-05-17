@@ -1,5 +1,6 @@
 import os
 import json
+import sys
 import time
 import argparse
 import subprocess
@@ -286,7 +287,7 @@ def objective(params):
 
         config_path = generate_config_toml(base_config_path, params, dir_logs)
 
-        cmd = f"python -W ignore models/tab_ddpm/scripts/pipeline.py --config {config_path} --dataset {args.dataset}"
+        cmd = f"{sys.executable} -W ignore models/tab_ddpm/scripts/pipeline.py --config {config_path} --dataset {args.dataset}"
         print(f">> logging to {dir_logs}")
         print(f">> running {cmd}")
 
@@ -303,10 +304,17 @@ def objective(params):
             env={**os.environ, "PYTHONPATH": "."},
         )
 
-        # If you need to print or use the output, use result.stdout.decode()
-        print(result.stdout.decode())
+        with open(os.path.join(dir_logs, "training_log.txt"), "w") as _logf:
+            _logf.write(result.stdout.decode())
+            _logf.write(result.stderr.decode())
 
-        folder = path_utils.get_filename(dir_logs)
+        _pre = "test-" if args.is_test else ""
+        if args.loss_version == 0:
+            folder = f"{_pre}{args.dataset}-{args.arch}-lv_0-condvec_{args.is_condvec}"
+        else:
+            _lc = params.get('is_loss_corr', 0.0)
+            _ld = params.get('is_loss_dwp', 0.0)
+            folder = f"{_pre}{args.dataset}-{args.arch}-lv_{args.loss_version}-losscorcorr_{_lc:.2e}-lossdis_{_ld:.2e}-condvec_{args.is_condvec}"
         discrete_columns = D.discrete_columns
         continuous_columns = [
             c for c in list(D.data_train) if c not in discrete_columns

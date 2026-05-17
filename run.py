@@ -5,6 +5,7 @@ Usage:
     python run.py --config configs/clinical.toml --dry-run
 """
 import argparse
+import json
 import logging
 import sys
 import time
@@ -175,7 +176,7 @@ def _setup_file_logger(dataset: str) -> tuple[Path, logging.Logger]:
     return log_path, logger
 
 
-def _print_summary_table(summary: dict, combos: list[str], console) -> None:
+def _print_summary_table(summary: dict, all_labels: list[str], console) -> None:
     """Render the final run summary as a rich Table to *console*."""
     from rich.table import Table
 
@@ -188,7 +189,10 @@ def _print_summary_table(summary: dict, combos: list[str], console) -> None:
     _STATUS_STYLE = {"done": "green", "failed": "red", "skipped": "yellow"}
     _STATUS_MARK = {"done": "✓ done", "failed": "✗ failed", "skipped": "↷ skipped"}
 
-    for label in ("preprocess", *combos, "evaluate", "postprocess"):
+    for label in all_labels:
+        if label == "---":
+            tbl.add_section()
+            continue
         entry = summary.get(label, {"status": "pending", "duration": None, "loss": None})
         status = entry["status"]
         mark = _STATUS_MARK.get(status, status)
@@ -197,9 +201,21 @@ def _print_summary_table(summary: dict, combos: list[str], console) -> None:
         dur_str = f"{dur:.1f}s" if dur else "—"
         loss = entry.get("loss")
         loss_str = f"{loss:.4f}" if loss is not None else "—"
-        tbl.add_row(label, f"[{style}]{mark}[/{style}]", dur_str, loss_str)
+        display = entry.get("display")
+        status_cell = display if display else (f"[{style}]{mark}[/{style}]" if style else mark)
+        tbl.add_row(label, status_cell, dur_str, loss_str)
 
     console.print(tbl)
+
+
+def _print_output_panel(dataset: str, console) -> None:
+    from rich.panel import Panel
+    prepared_dir = Path("database/prepared") / dataset
+    if not (prepared_dir / "synthetic_final.csv").exists():
+        return
+    paths = sorted(prepared_dir.glob("synthetic_*.csv"))
+    console.print(Panel("\n".join(str(p) for p in paths),
+                        title="Output files", border_style="green"))
 
 
 def run_pipeline(
@@ -267,6 +283,9 @@ def run_pipeline(
         spin = _SPINNER[_cur["tick"] % len(_SPINNER)]
 
         for label in all_labels:
+            if label == "---":
+                tbl.add_section()
+                continue
             if label == _cur["label"]:
                 elapsed = now - _cur["t0"]
                 status_cell = f"[yellow]{spin} {elapsed:.1f}s...[/yellow]"
@@ -276,7 +295,8 @@ def run_pipeline(
                 st = entry["status"]
                 mark = _STATUS_MARK.get(st, st)
                 style = _STATUS_STYLE.get(st, "")
-                status_cell = f"[{style}]{mark}[/{style}]" if style else mark
+                display = entry.get("display")
+                status_cell = display if display else (f"[{style}]{mark}[/{style}]" if style else mark)
                 dur = entry.get("duration")
                 loss = entry.get("loss")
                 tbl.add_row(
@@ -362,7 +382,12 @@ def run_pipeline(
         for combo in combos:
             gm, loss = combo.split("-", 1)
             if is_done_fn(dataset, "train", combo):
-                summary[combo] = {"status": "skipped", "duration": 0.0, "loss": None}
+                combo_loss = (
+                    progress.load(dataset)
+                    .get("steps", {}).get("train", {}).get("models", {})
+                    .get(combo, {}).get("loss")
+                )
+                summary[combo] = {"status": "skipped", "duration": 0.0, "loss": combo_loss}
                 logger.info(f"SKIP  {combo}")
                 live.update(_build_renderable())
                 continue
@@ -371,12 +396,50 @@ def run_pipeline(
             else:
                 fn = lambda g=gm, l=loss: _default("train", [g], [l], is_test, max_trials)
             _run_step(combo, fn)
+            combo_loss = (
+                progress.load(dataset)
+                .get("steps", {}).get("train", {}).get("models", {})
+                .get(combo, {}).get("loss")
+            )
+            if combo_loss is not None:
+                summary[combo]["loss"] = combo_loss
+            live.update(_build_renderable())
 
         _run_step("evaluate", evaluate_fn, step_key="evaluate")
+
+        eval_summary_path = Path("database/prepared") / dataset / "eval_summary.json"
+        if eval_summary_path.exists():
+            try:
+                with open(eval_summary_path) as fh:
+                    eval_data = json.load(fh)
+                family_best = eval_data.get("family_best", {})
+                global_best = eval_data.get("global_best", {})
+                if family_best:
+                    all_labels.append("---")
+                    for family, info in sorted(family_best.items(),
+                                               key=lambda x: x[1]["loss"] if x[1]["loss"] is not None else float("inf")):
+                        lbl = f"↳ {family}"
+                        all_labels.append(lbl)
+                        summary[lbl] = {
+                            "status": "done", "duration": None,
+                            "loss": info["loss"], "display": info["model_key"],
+                        }
+                    if global_best:
+                        lbl = "★ best overall"
+                        all_labels.append(lbl)
+                        summary[lbl] = {
+                            "status": "done", "duration": None,
+                            "loss": global_best["loss"], "display": global_best["model_key"],
+                        }
+                    live.update(_build_renderable())
+            except Exception:
+                pass
+
         _run_step("postprocess", postprocess_fn, step_key="postprocess")
 
     logger.info(f"DONE  pipeline finished. Log: {log_path}")
-    _print_summary_table(summary, combos, summary_console)
+    _print_summary_table(summary, all_labels, summary_console)
+    _print_output_panel(dataset, summary_console)
     return summary
 
 

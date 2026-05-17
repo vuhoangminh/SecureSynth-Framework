@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -13,15 +14,24 @@ from engine.utils.path_utils import get_run_dir
 # Translate config-level names to the directory naming used by the optimizers.
 _LOSS_TO_LV: dict[str, str] = {"vanilla": "lv0", "cd": "lv2"}
 
+_FAMILY_ALIASES: dict[str, str] = {"ctgan0": "ctgan"}
+
 
 def _norm_model(model: str) -> str:
     return model.lower()
+
+
+def _model_family(model_key: str) -> str:
+    """Return the canonical family name for a 'MODEL-loss' key."""
+    model = model_key.split("-", 1)[0].lower()
+    return _FAMILY_ALIASES.get(model, model)
 
 
 @dataclass
 class StepResult:
     ok: bool
     error: Exception | None = None
+    data: dict | None = None
 
 
 def step_preprocess(dataset: str, config_path: str, _dataset_cls=None) -> StepResult:
@@ -64,6 +74,7 @@ def _dispatch_combo(
         ],
         capture_output=True,
         text=True,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parent.parent)},
     )
     if proc.returncode != 0:
         return None
@@ -74,6 +85,19 @@ def _dispatch_combo(
         return json.loads(lines[-1])
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+def _write_family_symlink(dataset: str, best_trial: int, model_key: str) -> None:
+    family = _model_family(model_key)
+    model, loss = model_key.split("-", 1)
+    arch = _norm_model(model)
+    lv = _LOSS_TO_LV.get(loss, loss)
+    link = Path("database/prepared") / dataset / f"best_{family}"
+    target = Path("../../runs") / f"{dataset}-{arch}-{lv}" / f"trial_{best_trial:04d}"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.exists() or link.is_symlink():
+        link.unlink()
+    link.symlink_to(target)
 
 
 def _write_best_symlink(dataset: str, best_trial: int, model: str, loss: str) -> None:
@@ -135,18 +159,62 @@ def step_train(
 
 
 def step_evaluate(dataset: str, config_path: str) -> StepResult:
-    """Aggregate per-trial evaluation results from all training combos.
+    """Rank all trained combos by loss; write eval_summary.json + best_{family}/ symlinks."""
+    models_status = (
+        progress.load(dataset)
+        .get("steps", {}).get("train", {}).get("models", {})
+    )
+    done = {
+        k: v for k, v in models_status.items()
+        if v.get("status") == "done"
+        and v.get("loss") is not None
+        and v.get("loss") != float("inf")
+    }
 
-    Each hyperopt trial already writes evaluation metrics (statistics, ML
-    utility, DP) to its logger.json via --module gmdp.  This step reads those
-    results and writes a cross-model summary to
-    database/prepared/{dataset}/eval_summary.json.
+    if not done:
+        progress.mark(dataset, "evaluate", "done")
+        return StepResult(ok=True, data={})
 
-    TODO: implement cross-model summary and ranking once all combos produce
-    consistent logger.json schemas.  For now this is a no-op placeholder.
-    """
+    family_best: dict[str, dict] = {}
+    for model_key, entry in done.items():
+        family = _model_family(model_key)
+        loss = entry.get("loss", float("inf"))
+        if family not in family_best or loss < family_best[family]["loss"]:
+            family_best[family] = {
+                "model_key": model_key,
+                "best_trial": entry.get("best_trial", 0),
+                "loss": loss,
+            }
+
+    global_best = min(family_best.values(), key=lambda x: x["loss"])
+
+    for info in family_best.values():
+        _write_family_symlink(dataset, info["best_trial"], info["model_key"])
+
+    summary = {
+        "family_best": family_best,
+        "global_best": global_best,
+        "all_models": {
+            k: {"best_trial": v.get("best_trial", 0), "loss": v.get("loss")}
+            for k, v in done.items()
+        },
+    }
+    summary_path = Path("database/prepared") / dataset / "eval_summary.json"
+    def _sanitize(obj):
+        if isinstance(obj, float) and (obj != obj or abs(obj) == float("inf")):
+            return None
+        if isinstance(obj, dict):
+            return {k: _sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_sanitize(v) for v in obj]
+        return obj
+
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(summary_path, "w", encoding="utf-8") as fh:
+        json.dump(_sanitize(summary), fh, indent=2)
+
     progress.mark(dataset, "evaluate", "done")
-    return StepResult(ok=True)
+    return StepResult(ok=True, data=summary)
 
 
 def step_postprocess(
@@ -154,8 +222,10 @@ def step_postprocess(
     config_path: str,
     _dataset_cls=None,
 ) -> StepResult:
-    """Apply postprocess_synthetic() to every done model's best-trial synthetic CSV.
+    """Postprocess family-best synthetic CSVs and write synthetic_{family}.csv + synthetic_final.csv.
 
+    Reads eval_summary.json written by step_evaluate.  If the file is absent or
+    a synthetic_full.csv is missing, the corresponding output is skipped (no error).
     *_dataset_cls* is injectable for unit tests.
     """
     import pandas as pd
@@ -171,30 +241,44 @@ def step_postprocess(
         .get("models", {})
     )
 
-    processed = 0
-    for model_key, entry in models_status.items():
-        if entry.get("status") != "done":
-            continue
-        model, loss = model_key.split("-", 1)
-        best_trial = entry.get("best_trial", 0)
-        arch = _norm_model(model)
-        lv = _LOSS_TO_LV.get(loss, loss)
-        synth_path = get_run_dir(dataset, arch, lv, best_trial) / "synthetic_full.csv"
-        if not synth_path.exists():
-            continue
-        ds = _dataset_cls(config_path)
-        df = pd.read_csv(synth_path)
-        df_post = ds.postprocess_synthetic(df)
-        df_post.to_csv(synth_path, index=False)
-        processed += 1
-
     done_models = [k for k, v in models_status.items() if v.get("status") == "done"]
     if not done_models:
-        # Training never succeeded — postprocess has nothing to work with.
         progress.mark(dataset, "postprocess", "failed")
         return StepResult(ok=False, error=RuntimeError("No successfully trained models found"))
-    # processed==0 with done models means synthetic_full.csv wasn't written
-    # (e.g. test mode / row_number_full not set) — that is not an error.
+
+    prepared_dir = Path("database/prepared") / dataset
+    summary_path = prepared_dir / "eval_summary.json"
+
+    if summary_path.exists():
+        with open(summary_path, "r", encoding="utf-8") as fh:
+            eval_summary = json.load(fh)
+        family_best = eval_summary.get("family_best", {})
+        global_best = eval_summary.get("global_best", {})
+        prepared_dir.mkdir(parents=True, exist_ok=True)
+
+        for family, info in family_best.items():
+            model_key = info["model_key"]
+            model, loss = model_key.split("-", 1)
+            synth_path = get_run_dir(
+                dataset, _norm_model(model), _LOSS_TO_LV.get(loss, loss), info["best_trial"]
+            ) / "synthetic_full.csv"
+            if not synth_path.exists():
+                continue
+            ds = _dataset_cls(config_path)
+            df_post = ds.postprocess_synthetic(pd.read_csv(synth_path))
+            df_post.to_csv(prepared_dir / f"synthetic_{family}.csv", index=False)
+
+        if global_best:
+            model_key = global_best["model_key"]
+            model, loss = model_key.split("-", 1)
+            synth_path = get_run_dir(
+                dataset, _norm_model(model), _LOSS_TO_LV.get(loss, loss), global_best["best_trial"]
+            ) / "synthetic_full.csv"
+            if synth_path.exists():
+                ds = _dataset_cls(config_path)
+                df_post = ds.postprocess_synthetic(pd.read_csv(synth_path))
+                df_post.to_csv(prepared_dir / "synthetic_final.csv", index=False)
+
     progress.mark(dataset, "postprocess", "done")
     return StepResult(ok=True)
 

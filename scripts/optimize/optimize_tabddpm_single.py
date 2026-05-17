@@ -1,5 +1,6 @@
 import os
 import json
+import sys
 import time
 import argparse
 import subprocess
@@ -263,7 +264,7 @@ def objective(params):
 
         config_path = generate_config_toml(base_config_path, params, dir_logs)
 
-        cmd = f"python -W ignore models/tab_ddpm/scripts/pipeline.py --config {config_path} --dataset {args.dataset}"
+        cmd = f"{sys.executable} -W ignore models/tab_ddpm/scripts/pipeline.py --config {config_path} --dataset {args.dataset}"
         print(f">> logging to {dir_logs}")
         print(f">> running {cmd}")
 

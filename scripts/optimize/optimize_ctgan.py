@@ -1,5 +1,6 @@
 import os
 import json
+import sys
 import time
 import argparse
 import subprocess
@@ -203,9 +204,9 @@ def objective(params):
 
     try:
         if args.row_number is not None:
-            _cmd = f"python -W ignore scripts/optimize/run_tabgen.py --trial_n {trial_n} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec} --row_number {args.row_number}"
+            _cmd = f"{sys.executable} -W ignore scripts/optimize/run_tabgen.py --trial_n {trial_n} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec} --row_number {args.row_number}"
         else:
-            _cmd = f"python -W ignore scripts/optimize/run_tabgen.py --trial_n {trial_n} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec}"
+            _cmd = f"{sys.executable} -W ignore scripts/optimize/run_tabgen.py --trial_n {trial_n} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec}"
 
         cmd = update_cmd(params, _cmd)
 
@@ -222,10 +223,17 @@ def objective(params):
             stderr=subprocess.PIPE,
         )
 
-        # If you need to print or use the output, use result.stdout.decode()
-        print(result.stdout.decode())
+        with open(os.path.join(dir_logs, "training_log.txt"), "w") as _logf:
+            _logf.write(result.stdout.decode())
+            _logf.write(result.stderr.decode())
 
-        folder = path_utils.get_filename(dir_logs)
+        _pre = "test-" if args.is_test else ""
+        if args.loss_version == 0:
+            folder = f"{_pre}{args.dataset}-{args.arch}-lv_0-condvec_{args.is_condvec}"
+        else:
+            _lc = params.get('is_loss_corr', 0.0)
+            _ld = params.get('is_loss_dwp', 0.0)
+            folder = f"{_pre}{args.dataset}-{args.arch}-lv_{args.loss_version}-losscorcorr_{_lc:.2e}-lossdis_{_ld:.2e}-condvec_{args.is_condvec}"
         D = get_dataset(args.dataset)
         discrete_columns = D.discrete_columns
         continuous_columns = [
@@ -244,39 +252,9 @@ def objective(params):
         df_score = df_score.drop(df_score.columns[:6], axis=1)  # Drop first 6 columns
         df_score = df_score.drop(df_score.columns[-2:], axis=1)  # Drop last 2 columns
 
-        df_score_ml = compute_ml_metrics_all_ml_methods(
-            D,
-            None,
-            folder,
-            mode="last",
-            task="single",
-            dir_logs=dir_logs,
-        )
-        df_score_ml = df_score_ml.drop(df_score_ml.columns[:6], axis=1)
-
-        df_score_augment = compute_ml_metrics_all_ml_methods(
-            D,
-            None,
-            folder,
-            mode="last",
-            task="augment",
-            dir_logs=dir_logs,
-        )
-        df_score_augment = df_score_augment.drop(df_score_augment.columns[:6], axis=1)
-
-        if args.module != "public":
-            df_score_dp = compute_dp_metrics(
-                D,
-                None,
-                folder,
-                key_fields=D.key_fields,
-                sensitive_fields=D.sensitive_fields,
-                dir_logs=dir_logs,
-            )
-            df_score_dp = df_score_dp.drop(df_score_dp.columns[:6], axis=1)
-        else:
-            df_score_dp = None
-
+        df_score_ml = None
+        df_score_augment = None
+        df_score_dp = None
         # Find best loss
         reason = "success"
 

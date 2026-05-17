@@ -59,7 +59,7 @@ def main(args):
 
     model = Model(denoise_fn=denoise_fn, hid_dim=train_z.shape[1]).to(device)
 
-    dir_logs = os.path.join(args.dir_logs, path_utils.get_folder_technical_paper(args))
+    dir_logs = args.dir_logs
     print(dir_logs)
     save_path = dir_logs + f"/fake_{args.epochs:05}.csv"
 
