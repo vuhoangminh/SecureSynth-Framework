@@ -193,7 +193,8 @@ def objective(params):
 
     trial_n = _trial_count[0]
     _trial_count[0] += 1
-    dir_logs = str(path_utils.get_run_dir(args.dataset, args.arch, f"lv{args.loss_version}", trial_n, bool(args.is_test)))
+    arch_dir = args.arch if args.is_condvec else f"{args.arch}0"
+    dir_logs = str(path_utils.get_run_dir(args.dataset, arch_dir, f"lv{args.loss_version}", trial_n, bool(args.is_test)))
     path_utils.make_dir(dir_logs)
     with open(os.path.join(dir_logs, "params.json"), "w") as _f:
         json.dump(params, _f, default=str)

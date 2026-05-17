@@ -8,7 +8,10 @@ import pandas as pd
 from engine.config_loader import PipelineConfig
 
 _KNOWN_GMS = {
-    "ctgan", "copulagan", "dpcgans", "ctab", "tvae",
+    "ctgan", "ctgan0",
+    "copulagan", "copulagan0",
+    "tvae", "tvae0",
+    "dpcgans", "ctab",
     "tabddpm", "tabsyn",
 }
 _KNOWN_LOSSES = {"vanilla", "cd"}

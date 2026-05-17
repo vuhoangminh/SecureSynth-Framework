@@ -27,6 +27,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Validate config and print execution plan; do not write any files",
     )
+    p.add_argument(
+        "--test",
+        action="store_true",
+        help="Smoke-test mode: 20 epochs, 2 IORBO trials per combo",
+    )
     return p
 
 
@@ -91,7 +96,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Aborting: fix the errors above before running the pipeline.", file=sys.stderr)
         return 1
 
-    summary = run_pipeline(args.config, cfg)
+    is_test = 1 if args.test else 0
+    max_trials = 2 if args.test else 30
+    summary = run_pipeline(args.config, cfg, is_test=is_test, max_trials=max_trials)
     failed = [k for k, v in summary.items() if v["status"] == "failed"]
     return 1 if failed else 0
 
@@ -200,6 +207,8 @@ def run_pipeline(
     cfg,
     _steps: dict | None = None,
     _console=None,
+    is_test: int = 0,
+    max_trials: int = 30,
 ) -> dict:
     """Execute the full pipeline with dual logging (rich Live + file handler).
 
@@ -289,7 +298,7 @@ def run_pipeline(
             if train_fn is not None:
                 fn = lambda g=gm, l=loss: train_fn(g, l)
             else:
-                fn = lambda g=gm, l=loss: _default("train", [g], [l])
+                fn = lambda g=gm, l=loss: _default("train", [g], [l], is_test, max_trials)
             _run_step(combo, fn)
 
         _run_step("evaluate", evaluate_fn, step_key="evaluate")

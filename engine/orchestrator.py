@@ -10,6 +10,13 @@ from typing import Any
 import engine.progress as progress
 from engine.utils.path_utils import get_run_dir
 
+# Translate config-level names to the directory naming used by the optimizers.
+_LOSS_TO_LV: dict[str, str] = {"vanilla": "lv0", "cd": "lv2"}
+
+
+def _norm_model(model: str) -> str:
+    return model.lower()
+
 
 @dataclass
 class StepResult:
@@ -36,7 +43,8 @@ def step_preprocess(dataset: str, config_path: str, _dataset_cls=None) -> StepRe
 
 
 def _dispatch_combo(
-    dataset: str, model: str, loss: str, config_path: str
+    dataset: str, model: str, loss: str, config_path: str,
+    is_test: int = 0, max_trials: int = 30,
 ) -> dict[str, Any] | None:
     """Run one model×loss optimisation in a subprocess.
 
@@ -51,6 +59,8 @@ def _dispatch_combo(
             "--model", model,
             "--loss", loss,
             "--config", config_path,
+            "--is_test", str(is_test),
+            "--max_trials", str(max_trials),
         ],
         capture_output=True,
         text=True,
@@ -68,7 +78,9 @@ def _dispatch_combo(
 
 def _write_best_symlink(dataset: str, best_trial: int, model: str, loss: str) -> None:
     link = Path("database/prepared") / dataset / "best"
-    target = Path("../../runs") / f"{dataset}-{model}-{loss}" / f"trial_{best_trial:04d}"
+    arch = _norm_model(model)
+    lv = _LOSS_TO_LV.get(loss, loss)
+    target = Path("../../runs") / f"{dataset}-{arch}-{lv}" / f"trial_{best_trial:04d}"
     link.parent.mkdir(parents=True, exist_ok=True)
     if link.exists() or link.is_symlink():
         link.unlink()
@@ -80,6 +92,8 @@ def step_train(
     config_path: str,
     gms: list[str],
     losses: list[str],
+    is_test: int = 0,
+    max_trials: int = 30,
 ) -> StepResult:
     """Iterate every model×loss combo, dispatch each as a subprocess, handle failures
     independently, then write a ``best/`` symlink to the combo with the lowest loss.
@@ -90,7 +104,7 @@ def step_train(
         for loss in losses:
             model_key = f"{gm}-{loss}"
             try:
-                result = _dispatch_combo(dataset, gm, loss, config_path)
+                result = _dispatch_combo(dataset, gm, loss, config_path, is_test, max_trials)
             except Exception:
                 result = None
 
@@ -165,7 +179,9 @@ def step_postprocess(
             continue
         model, loss = model_key.split("-", 1)
         best_trial = entry.get("best_trial", 0)
-        synth_path = get_run_dir(dataset, model, loss, best_trial) / "synthetic_full.csv"
+        arch = _norm_model(model)
+        lv = _LOSS_TO_LV.get(loss, loss)
+        synth_path = get_run_dir(dataset, arch, lv, best_trial) / "synthetic_full.csv"
         if not synth_path.exists():
             continue
         ds = _dataset_cls(config_path)
@@ -181,7 +197,12 @@ def step_postprocess(
     return StepResult(ok=False)
 
 
-def run(config_path: str, _dataset_cls=None) -> dict[str, Any]:
+def run(
+    config_path: str,
+    _dataset_cls=None,
+    is_test: int = 0,
+    max_trials: int = 30,
+) -> dict[str, Any]:
     """Execute the full pipeline from *config_path* and return the final status dict."""
     from engine.config_loader import load_config  # noqa: lazy
 
@@ -191,7 +212,7 @@ def run(config_path: str, _dataset_cls=None) -> dict[str, Any]:
     progress.init(dataset, config_path, model_keys)
 
     step_preprocess(dataset, config_path, _dataset_cls=_dataset_cls)
-    step_train(dataset, config_path, cfg.training.gms, cfg.training.losses)
+    step_train(dataset, config_path, cfg.training.gms, cfg.training.losses, is_test, max_trials)
     step_evaluate(dataset, config_path)
     step_postprocess(dataset, config_path, _dataset_cls=_dataset_cls)
 

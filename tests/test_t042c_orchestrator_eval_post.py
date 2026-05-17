@@ -91,8 +91,8 @@ class TestStepPostprocess:
         progress.mark("ds", "train", "done", model="CTGAN-vanilla", best_trial=0, loss=0.5)
         progress.mark("ds", "train", "done", model="TabSyn-vanilla", best_trial=0, loss=0.4)
 
-        _make_run_dir(tmp_path, "ds", "CTGAN", "vanilla")
-        _make_run_dir(tmp_path, "ds", "TabSyn", "vanilla")
+        _make_run_dir(tmp_path, "ds", "ctgan", "lv0")
+        _make_run_dir(tmp_path, "ds", "tabsyn", "lv0")
         monkeypatch.setattr("engine.orchestrator.get_run_dir", _mock_run_dir(tmp_path))
 
         mock_cls = MagicMock()
@@ -105,7 +105,7 @@ class TestStepPostprocess:
     def test_marks_postprocess_done_when_csvs_exist(self, progress_tmp, tmp_path, monkeypatch):
         progress.init("ds", "c.toml", ["CTGAN-vanilla"])
         progress.mark("ds", "train", "done", model="CTGAN-vanilla", best_trial=0, loss=0.5)
-        _make_run_dir(tmp_path, "ds", "CTGAN", "vanilla")
+        _make_run_dir(tmp_path, "ds", "ctgan", "lv0")
         monkeypatch.setattr("engine.orchestrator.get_run_dir", _mock_run_dir(tmp_path))
 
         mock_cls = MagicMock()
@@ -129,7 +129,7 @@ class TestStepPostprocess:
         progress.mark("ds", "train", "failed", model="CTGAN-vanilla")
         progress.mark("ds", "train", "done", model="TabSyn-vanilla", best_trial=0, loss=0.4)
 
-        _make_run_dir(tmp_path, "ds", "TabSyn", "vanilla")
+        _make_run_dir(tmp_path, "ds", "tabsyn", "lv0")
         monkeypatch.setattr("engine.orchestrator.get_run_dir", _mock_run_dir(tmp_path))
 
         mock_cls = MagicMock()

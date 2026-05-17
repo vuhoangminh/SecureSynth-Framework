@@ -21,8 +21,9 @@ pca_exclude       = []
 missing_noise_std = 0.05
 
 [training]
-gms        = ["CTGAN", "TVAE", "TabSyn"]
-losses     = ["vanilla", "cd"]
+gms        = ["CTGAN", "CTGAN0", "TVAE", "TabSyn"]
+# losses     = ["vanilla", "cd"]
+losses     = ["cd"]
 epochs     = 10000
 batch_size = 500
 
