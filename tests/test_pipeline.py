@@ -198,7 +198,7 @@ _OPTIMIZATION_DIR = Path(REPO_ROOT) / "database" / "optimization"
 
 def test_check_results_produces_output():
     """check_results.py --dataset clinical: confirm ranking summary is printed."""
-    if not any(_OPTIMIZATION_DIR.glob("*clinical*.hyperopt")):
+    if not any(_OPTIMIZATION_DIR.rglob("*clinical*.hyperopt")):
         pytest.skip(
             "No clinical .hyperopt files in database/optimization/ — "
             "run t021 or t022 first to generate optimization results"

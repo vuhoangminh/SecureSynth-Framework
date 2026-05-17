@@ -280,7 +280,7 @@ def compute_ml_metrics_all_ml_methods(
     task="single",  # single, augment
     ml_params_setting={
         "mode": "best",
-        "path": "database/optimization_ml_method",
+        "path": "database/optimization/ml_method",
     },
     df_fake=None,
     dir_logs=None,

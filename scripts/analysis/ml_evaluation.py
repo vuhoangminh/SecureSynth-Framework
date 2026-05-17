@@ -404,9 +404,9 @@ if __name__ == "__main__":
     filename = f"{args.dataset}_{args.ml_method}"
 
     if args.bo_method == "ior":
-        folder = "optimization_ml_method"
+        folder = "optimization/ml_method"
     elif args.bo_method == "sbo":
-        folder = f"optimization_ml_method_sbo_{args.bo_method_agg}"
+        folder = f"optimization/ml_method_sbo_{args.bo_method_agg}"
 
     hyperopt_project_path = path_utils.get_hyperopt_path(
         filename, database_path=database_path, folder=folder

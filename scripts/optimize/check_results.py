@@ -69,7 +69,7 @@ def get_paths(paths, dataset=None):
 
 
 # dir = "database/optimization_ml_method/"
-dir = "database/optimization/"
+dir = "database/optimization/generative_model/"
 # dir = "database/optimization_phase2_data_sufficient"
 # dir = "database/optimization_data_sufficient/"
 # dir = "database/optimization_sbo_mean/"
