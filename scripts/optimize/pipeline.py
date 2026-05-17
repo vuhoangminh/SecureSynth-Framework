@@ -9,6 +9,7 @@ Prints a JSON object as its final stdout line:
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 
@@ -80,10 +81,11 @@ def main():
         "--is_condvec", str(condvec),
         "--is_test", str(args.is_test),
         "--max_trials", str(args.max_trials),
-        "--module", "public",
+        "--module", "gmdp",
     ]
 
-    proc = subprocess.run(cmd)
+    env = {**os.environ, "PYTHONPATH": "."}
+    proc = subprocess.run(cmd, env=env)
     if proc.returncode != 0:
         sys.exit(proc.returncode)
 

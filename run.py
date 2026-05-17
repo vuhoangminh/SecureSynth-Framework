@@ -222,17 +222,17 @@ def run_pipeline(
         "postprocess" -> callable() -> StepResult
         "is_done"     -> callable(dataset, step, model=None) -> bool
     """
+    import threading
     import engine.progress as progress
-    from rich.console import Console
+    from rich.console import Console, Group
     from rich.live import Live
     from rich.table import Table
+    from rich.text import Text
 
     dataset = Path(config_path).stem
     log_path, logger = _setup_file_logger(dataset)
 
-    # Console for the Live display (stderr keeps it off capsys.out in tests)
     live_console = _console if _console is not None else Console(stderr=True)
-    # Summary table always goes to stdout so it's visible in the terminal
     summary_console = _console if _console is not None else Console()
 
     combos = [
@@ -240,40 +240,63 @@ def run_pipeline(
         for gm in cfg.training.gms
         for loss in cfg.training.losses
     ]
+    all_labels = ["preprocess", *combos, "evaluate", "postprocess"]
 
     try:
         progress.init(dataset, config_path, combos)
     except Exception:
-        pass  # not fatal — directory may not exist in test environments
+        pass
 
     steps = _steps or {}
     is_done_fn = steps.get("is_done", progress.is_done)
-
     summary: dict[str, dict] = {}
 
-    # --- live status table (updates in-place while running) ---
-    live_tbl = Table(show_header=True, box=None)
-    live_tbl.add_column("Step", style="cyan", min_width=22)
-    live_tbl.add_column("Status")
+    _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    _STATUS_STYLE = {"done": "green", "failed": "red", "skipped": "yellow"}
+    _STATUS_MARK  = {"done": "✓ done", "failed": "✗ failed", "skipped": "↷ skipped"}
+    _cur: dict = {"label": None, "t0": None, "tick": 0}
 
-    def _run_step(label: str, fn, step_key: str | None = None) -> bool:
-        if step_key and is_done_fn(dataset, step_key):
-            summary[label] = {"status": "skipped", "duration": 0.0, "loss": None}
-            logger.info(f"SKIP  {label}")
-            return True
-        logger.info(f"START {label}")
-        t0 = time.monotonic()
-        try:
-            result = fn()
-            ok = result.ok if hasattr(result, "ok") else bool(result)
-        except Exception as exc:
-            logger.error(f"ERROR {label}: {exc}")
-            ok = False
-        duration = time.monotonic() - t0
-        status = "done" if ok else "failed"
-        summary[label] = {"status": status, "duration": duration, "loss": None}
-        logger.info(f"END   {label}  status={status}  duration={duration:.1f}s")
-        return ok
+    def _build_renderable():
+        tbl = Table(show_header=True, header_style="bold")
+        tbl.add_column("Step / Combo", style="cyan", min_width=24)
+        tbl.add_column("Status", justify="center", min_width=14)
+        tbl.add_column("Duration", justify="right", min_width=9)
+        tbl.add_column("Best loss", justify="right", min_width=10)
+
+        now = time.monotonic()
+        spin = _SPINNER[_cur["tick"] % len(_SPINNER)]
+
+        for label in all_labels:
+            if label == _cur["label"]:
+                elapsed = now - _cur["t0"]
+                status_cell = f"[yellow]{spin} {elapsed:.1f}s...[/yellow]"
+                tbl.add_row(label, status_cell, "—", "—")
+            elif label in summary:
+                entry = summary[label]
+                st = entry["status"]
+                mark = _STATUS_MARK.get(st, st)
+                style = _STATUS_STYLE.get(st, "")
+                status_cell = f"[{style}]{mark}[/{style}]" if style else mark
+                dur = entry.get("duration")
+                loss = entry.get("loss")
+                tbl.add_row(
+                    label, status_cell,
+                    f"{dur:.1f}s" if dur else "—",
+                    f"{loss:.4f}" if loss is not None else "—",
+                )
+            else:
+                tbl.add_row(label, "[dim]pending[/dim]", "—", "—")
+
+        if _cur["label"]:
+            elapsed = now - _cur["t0"]
+            spin2 = _SPINNER[(_cur["tick"] + 2) % len(_SPINNER)]
+            bar = Text()
+            bar.append(f"\n  {spin2}  ", style="yellow")
+            bar.append(_cur["label"], style="cyan bold")
+            bar.append("  running...  ", style="dim")
+            bar.append(f"{elapsed:.1f}s", style="bold white")
+            return Group(tbl, bar)
+        return tbl
 
     def _default(step_name, *a):
         from engine import orchestrator as _o
@@ -281,19 +304,65 @@ def run_pipeline(
         return fn(dataset, config_path, *a)
 
     preprocess_fn = steps.get("preprocess", lambda: _default("preprocess"))
-    train_fn = steps.get("train")  # callable(gm, loss) or None → use orchestrator
-    evaluate_fn = steps.get("evaluate", lambda: _default("evaluate"))
-    postprocess_fn = steps.get("postprocess", lambda: _default("postprocess"))
+    train_fn      = steps.get("train")
+    evaluate_fn   = steps.get("evaluate",   lambda: _default("evaluate"))
+    postprocess_fn= steps.get("postprocess",lambda: _default("postprocess"))
 
-    with Live(live_tbl, console=live_console, refresh_per_second=4):
+    with Live(console=live_console, refresh_per_second=4) as live:
+
+        def _run_step(label: str, fn, step_key: str | None = None) -> bool:
+            if step_key and is_done_fn(dataset, step_key):
+                summary[label] = {"status": "skipped", "duration": 0.0, "loss": None}
+                logger.info(f"SKIP  {label}")
+                live.update(_build_renderable())
+                return True
+
+            logger.info(f"START {label}")
+            t0 = time.monotonic()
+            _cur["label"] = label
+            _cur["t0"]    = t0
+
+            result_box: list = [None]
+            exc_box:    list = [None]
+
+            def _worker():
+                try:
+                    result_box[0] = fn()
+                except Exception as e:
+                    exc_box[0] = e
+
+            thread = threading.Thread(target=_worker, daemon=True)
+            thread.start()
+            while thread.is_alive():
+                _cur["tick"] += 1
+                live.update(_build_renderable())
+                time.sleep(0.25)
+            thread.join()
+
+            _cur["label"] = None
+            duration = time.monotonic() - t0
+
+            if exc_box[0]:
+                logger.error(f"ERROR {label}: {exc_box[0]}")
+                ok = False
+            else:
+                result = result_box[0]
+                ok = result.ok if hasattr(result, "ok") else bool(result)
+
+            status = "done" if ok else "failed"
+            summary[label] = {"status": status, "duration": duration, "loss": None}
+            logger.info(f"END   {label}  status={status}  duration={duration:.1f}s")
+            live.update(_build_renderable())
+            return ok
+
         _run_step("preprocess", preprocess_fn, step_key="preprocess")
 
         for combo in combos:
             gm, loss = combo.split("-", 1)
-            # Train combos use model= keyword for the is_done check
             if is_done_fn(dataset, "train", combo):
                 summary[combo] = {"status": "skipped", "duration": 0.0, "loss": None}
                 logger.info(f"SKIP  {combo}")
+                live.update(_build_renderable())
                 continue
             if train_fn is not None:
                 fn = lambda g=gm, l=loss: train_fn(g, l)

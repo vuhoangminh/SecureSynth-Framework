@@ -136,6 +136,7 @@ def step_train(
 
 def step_evaluate(dataset: str, config_path: str) -> StepResult:
     """Run the data-sufficiency evaluation script for *dataset*."""
+    import os
     proc = subprocess.run(
         [
             sys.executable, "scripts/analysis/data_sufficiency.py",
@@ -143,6 +144,7 @@ def step_evaluate(dataset: str, config_path: str) -> StepResult:
         ],
         capture_output=True,
         text=True,
+        env={**os.environ, "PYTHONPATH": "."},
     )
     if proc.returncode == 0:
         progress.mark(dataset, "evaluate", "done")
