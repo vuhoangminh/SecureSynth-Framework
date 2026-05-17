@@ -175,12 +175,13 @@ def objective(params):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            print("TVAE Output:\n", result_tvae.stdout.decode())
+            with open(os.path.join(dir_logs, "tvae_log.txt"), "w") as _tvae_log:
+                _tvae_log.write(result_tvae.stdout.decode())
+                _tvae_log.write(result_tvae.stderr.decode())
         except subprocess.CalledProcessError as e:
             reason = f"Command '{cmd_tvae}' failed with return code {e.returncode}"
-            print(reason)
-            print(e.stderr.decode())
-            loss = np.inf
+            with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+                json.dump({"status": reason}, _f)
             return construct_return_dict(
                 loss, reason, params, None, None, None, None, None
             )
@@ -205,11 +206,13 @@ def objective(params):
             )
         except subprocess.CalledProcessError as e:
             reason = f"Command '{cmd_train}' failed with return code {e.returncode}"
-            print(reason)
-            print(e.stderr.decode())
+            with open(os.path.join(dir_logs, "training_log.txt"), "w") as _logf:
+                _logf.write(e.stderr.decode())
+            with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+                json.dump({"status": reason}, _f)
             loss = np.inf
             return construct_return_dict(
-                loss, reason, params, None, None, None, None, None
+                loss, reason, params, None, None, None, None, dir_logs
             )
 
         with open(os.path.join(dir_logs, "training_log.txt"), "w") as _logf:
