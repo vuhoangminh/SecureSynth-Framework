@@ -79,7 +79,7 @@ def main(args):
         info = json.load(f)
 
     ## Added by Minh
-    ckpt_dir = f"database/prepared/{dataname}"
+    ckpt_dir = f"database/prepared/{dataname}/tvae"
     ## Added by Minh
 
     if not os.path.exists(ckpt_dir):
