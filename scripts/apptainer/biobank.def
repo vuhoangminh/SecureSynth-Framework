@@ -1,6 +1,9 @@
 Bootstrap: docker
 from: rapidsai/base:23.10-cuda11.8-py3.9
 
+%environment
+    export PYTHONPATH=/repo
+
 %post
     # Uninstall existing version of xgboost installed by conda
     # conda uninstall -y xgboost
