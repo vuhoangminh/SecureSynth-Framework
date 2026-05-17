@@ -258,6 +258,13 @@ parser.add_argument(
     type=int,
 )
 
+parser.add_argument(
+    "--trial_n",
+    default=0,
+    type=int,
+    help="trial index passed by the optimizer; used to build the run dir via get_run_dir()",
+)
+
 # Parse the arguments
 args = parser.parse_args()
 
@@ -309,9 +316,7 @@ def main():
         args.is_loss_corr = 0
         args.is_loss_dwp = 0
 
-    args.dir_logs = os.path.join(
-        args.dir_logs, path_utils.get_folder_technical_paper(args)
-    )
+    args.dir_logs = str(path_utils.get_run_dir(args.dataset, args.arch, f"lv{args.loss_version}", args.trial_n, bool(args.is_test)))
     print(f">> logging to {args.dir_logs}")
 
     path_utils.make_dir(args.dir_logs)

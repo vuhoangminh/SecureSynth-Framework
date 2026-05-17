@@ -14,6 +14,8 @@ from rich import print
 import engine.utils.hyperopt_utils as hyperopt_utils
 import engine.utils.path_utils as path_utils
 
+_trial_count = [0]  # incremented per objective call; initialised in __main__ from saved trials
+
 from engine.evaluate_technical_paper import (
     compute_statistical_metrics,
     compute_ml_metrics_all_ml_methods,
@@ -189,19 +191,23 @@ def objective(params):
     params = update_params(params)
     print(params)
 
+    trial_n = _trial_count[0]
+    _trial_count[0] += 1
+    dir_logs = str(path_utils.get_run_dir(args.dataset, args.arch, f"lv{args.loss_version}", trial_n, bool(args.is_test)))
+    path_utils.make_dir(dir_logs)
+    with open(os.path.join(dir_logs, "params.json"), "w") as _f:
+        json.dump(params, _f, default=str)
+    with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+        json.dump({"status": "running"}, _f)
+
     try:
         if args.row_number is not None:
-            _cmd = f"python -W ignore scripts/optimize/run_tabgen.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec} --row_number {args.row_number}"
+            _cmd = f"python -W ignore scripts/optimize/run_tabgen.py --trial_n {trial_n} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec} --row_number {args.row_number}"
         else:
-            _cmd = f"python -W ignore scripts/optimize/run_tabgen.py --dir_logs {args.dir_logs} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec}"
+            _cmd = f"python -W ignore scripts/optimize/run_tabgen.py --trial_n {trial_n} --is_test {args.is_test} --dataset {args.dataset} --arch {args.arch} --loss_version {args.loss_version} --checkpoint_freq 100 --is_condvec {args.is_condvec}"
 
         cmd = update_cmd(params, _cmd)
 
-        new_parser = add_dict_to_args(parser, params)
-        new_args = new_parser.parse_args()
-        dir_logs = os.path.join(
-            args.dir_logs, path_utils.get_folder_technical_paper(new_args)
-        )
         print(f">> logging to {dir_logs}")
 
         print(f">> running {cmd}")
@@ -219,7 +225,7 @@ def objective(params):
         print(result.stdout.decode())
 
         folder = path_utils.get_filename(dir_logs)
-        D = get_dataset(new_args.dataset)
+        D = get_dataset(args.dataset)
         discrete_columns = D.discrete_columns
         continuous_columns = [
             c for c in list(D.data_train) if c not in discrete_columns
@@ -271,6 +277,8 @@ def objective(params):
 
         gc.collect()
 
+        with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+            json.dump({"status": reason}, _f)
         return construct_return_dict(
             loss,
             reason,
@@ -296,7 +304,9 @@ def objective(params):
         reason = str(e)
         loss = np.inf
 
-    return construct_return_dict(loss, reason, params, None, None, None, None, None)
+    with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+        json.dump({"status": reason}, _f)
+    return construct_return_dict(loss, reason, params, None, None, None, None, dir_logs)
 
 
 def init_search_space(args):
@@ -535,14 +545,15 @@ if __name__ == "__main__":
         filename = f"test_" + filename
 
     if args.bo_method == "ior":
-        folder = "optimization"
+        folder = "optimization/generative_model"
     elif args.bo_method == "sbo":
-        folder = f"optimization_sbo_{args.bo_method_agg}"
+        folder = f"optimization/generative_model_sbo_{args.bo_method_agg}"
     hyperopt_project_path = path_utils.get_hyperopt_path(
         filename, database_path=database_path, folder=folder
     )
 
     trials = hyperopt_utils.load_project(hyperopt_project_path)
+    _trial_count[0] = len(trials.trials)
     algo = "tpe"
     is_continue = True
 

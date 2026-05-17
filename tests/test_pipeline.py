@@ -28,6 +28,7 @@ _SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": REPO_ROOT}
 # Prerequisites
 # ---------------------------------------------------------------------------
 
+# Must match configs/clinical.toml [data] path
 CLINICAL_CSV = Path("data/clinical.csv")
 
 
@@ -40,16 +41,18 @@ def pytest_configure(config):
 @pytest.fixture(autouse=True, scope="module")
 def require_clinical_data():
     if not CLINICAL_CSV.exists():
-        pytest.skip("data/clinical.csv not found — skipping pipeline smoke tests")
+        pytest.skip(f"{CLINICAL_CSV} not found — skipping pipeline smoke tests")
 
 
 # ---------------------------------------------------------------------------
 # t019 — run_tabgen.py generates synthetic_full.csv
 # ---------------------------------------------------------------------------
 
-def test_run_tabgen_generates_synthetic_csv(tmp_path):
-    """5-epoch dry run: confirm synthetic_full.csv is written."""
-    dir_logs = tmp_path / "gan"
+def test_run_tabgen_generates_synthetic_csv():
+    """5-epoch dry run: confirm output is written to the get_run_dir() trial path."""
+    # run_tabgen now resolves its output dir via get_run_dir(), not --dir_logs.
+    # is_test=1 → base = database/runs_test/
+    trial_dir = Path(REPO_ROOT) / "database" / "runs_test" / "clinical-ctgan-lv0" / "trial_0000"
 
     result = subprocess.run(
         [
@@ -57,11 +60,12 @@ def test_run_tabgen_generates_synthetic_csv(tmp_path):
             "scripts/optimize/run_tabgen.py",
             "--dataset", "clinical",
             "--arch", "ctgan",
+            "--loss_version", "0",
             "--epochs", "5",
             "--n_run", "1",
             "--is_test", "1",
             "--checkpoint_freq", "100",
-            "--dir_logs", str(dir_logs),
+            "--trial_n", "0",
         ],
         capture_output=True,
         text=True,
@@ -76,9 +80,9 @@ def test_run_tabgen_generates_synthetic_csv(tmp_path):
 
     # synthetic_full.csv is only written when --row_number is used;
     # the standard output is fake_{epoch:05}.csv written at the final epoch.
-    fake_files = list(dir_logs.rglob("fake_*.csv"))
+    fake_files = list(trial_dir.rglob("fake_*.csv"))
     assert fake_files, (
-        f"No fake_*.csv found under {dir_logs}.\n"
+        f"No fake_*.csv found under {trial_dir}.\n"
         f"stdout tail:\n{result.stdout[-1000:]}"
     )
     assert fake_files[0].stat().st_size > 0, "fake CSV is empty"
@@ -100,7 +104,7 @@ def test_optimize_ctgan_one_trial():
             "--arch", "ctgan",
             "--max_trials", "1",
             "--is_test", "1",
-            "--module", "public",
+            "--module", "gm",
             "--loss_version", "0",
         ],
         capture_output=True,
@@ -233,7 +237,7 @@ def test_ml_evaluation_one_trial():
     Produces the pre-tuned classifier params used by evaluate_technical_paper.py.
     """
     if not CLINICAL_CSV.exists():
-        pytest.skip("data/clinical.csv absent")
+        pytest.skip(f"{CLINICAL_CSV} absent")
 
     result = subprocess.run(
         [

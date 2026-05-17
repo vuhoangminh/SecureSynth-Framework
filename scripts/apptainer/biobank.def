@@ -21,6 +21,7 @@ from: rapidsai/base:23.10-cuda11.8-py3.9
     pip install termcolor 
     pip install hyperopt
     pip install sdv==1.8.0
+    pip install rdt==1.21.0
     pip install wandb
     pip install researchpy
     pip install imbalanced-learn scikit-posthocs tabulate

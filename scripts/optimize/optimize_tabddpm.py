@@ -15,6 +15,8 @@ from rich import print
 import engine.utils.hyperopt_utils as hyperopt_utils
 import engine.utils.path_utils as path_utils
 
+_trial_count = [0]  # incremented per objective call; initialised in __main__ from saved trials
+
 from engine.evaluate_technical_paper import (
     compute_statistical_metrics,
     compute_ml_metrics_all_ml_methods,
@@ -264,15 +266,18 @@ def objective(params):
 
     print(params)
 
-    try:
-        new_parser = add_dict_to_args(parser, params)
-        new_args = new_parser.parse_args()
-        dir_logs = os.path.join(
-            args.dir_logs, path_utils.get_folder_technical_paper(new_args)
-        )
-        path_utils.make_dir(dir_logs)
+    trial_n = _trial_count[0]
+    _trial_count[0] += 1
+    dir_logs = str(path_utils.get_run_dir(args.dataset, args.arch, f"lv{args.loss_version}", trial_n, bool(args.is_test)))
+    path_utils.make_dir(dir_logs)
+    with open(os.path.join(dir_logs, "params.json"), "w") as _f:
+        json.dump(params, _f, default=str)
+    with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+        json.dump({"status": "running"}, _f)
 
-        D = get_dataset(new_args.dataset)
+    try:
+
+        D = get_dataset(args.dataset)
 
         if args.model_type == "mlp":
             base_config_path = f"database/dataset/{args.dataset}/config.toml"
@@ -357,6 +362,8 @@ def objective(params):
         print(f"reason: {reason}")
 
         print(">> return at objective...")
+        with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+            json.dump({"status": reason}, _f)
         return construct_return_dict(
             loss,
             reason,
@@ -386,8 +393,9 @@ def objective(params):
         reason = str(e)
         loss = np.inf
 
-    # In case of an error, return the failure response with loss set to infinity
-    return construct_return_dict(loss, reason, params, None, None, None, None, None)
+    with open(os.path.join(dir_logs, "status.json"), "w") as _f:
+        json.dump({"status": reason}, _f)
+    return construct_return_dict(loss, reason, params, None, None, None, None, dir_logs)
 
 
 # ===========================================================================
@@ -532,14 +540,15 @@ if __name__ == "__main__":
         filename = f"test_" + filename
 
     if args.bo_method == "ior":
-        folder = "optimization"
+        folder = "optimization/generative_model"
     elif args.bo_method == "sbo":
-        folder = f"optimization_sbo_{args.bo_method_agg}"
+        folder = f"optimization/generative_model_sbo_{args.bo_method_agg}"
     hyperopt_project_path = path_utils.get_hyperopt_path(
         filename, database_path=database_path, folder=folder
     )
 
     trials = hyperopt_utils.load_project(hyperopt_project_path)
+    _trial_count[0] = len(trials.trials)
     algo = "tpe"
     is_continue = True
 
