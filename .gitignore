@@ -1,7 +1,3 @@
-# AI assistant memory and local planning docs (Obsidian vault symlinks)
-.claude/
-docs/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
