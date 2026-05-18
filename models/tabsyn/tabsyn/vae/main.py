@@ -79,7 +79,8 @@ def main(args):
         info = json.load(f)
 
     ## Added by Minh
-    ckpt_dir = f"database/prepared/{dataname}/tvae"
+    _tvae_subdir = "test/tvae" if getattr(args, "is_test", 0) else "tvae"
+    ckpt_dir = f"database/prepared/{dataname}/{_tvae_subdir}"
     ## Added by Minh
 
     if not os.path.exists(ckpt_dir):
@@ -178,9 +179,7 @@ def main(args):
         optimizer, mode="min", factor=0.95, patience=10, verbose=True
     )
 
-    num_epochs = 4000
-    # num_epochs = 500
-    # num_epochs = 1
+    num_epochs = 20 if getattr(args, "is_test", 0) else 4000
 
     best_train_loss = float("inf")
 

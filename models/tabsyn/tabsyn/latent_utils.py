@@ -16,8 +16,8 @@ def get_input_train(args):
     with open(f"{dataset_dir}/info.json", "r") as f:
         info = json.load(f)
 
-    # ckpt_dir = f"{curr_dir}/ckpt/{dataname}/"
-    ckpt_dir = f"database/prepared/{dataname}/tvae"
+    _tvae_subdir = "test/tvae" if getattr(args, "is_test", 0) else "tvae"
+    ckpt_dir = f"database/prepared/{dataname}/{_tvae_subdir}"
 
     if args.row_number is not None:
         embedding_save_path = f"{ckpt_dir}/train_z_rownum-{args.row_number}.npy"
@@ -45,7 +45,8 @@ def get_input_generate(args):
 
     task_type = info["task_type"]
 
-    ckpt_dir = f"database/prepared/{dataname}/tvae"
+    _tvae_subdir = "test/tvae" if getattr(args, "is_test", 0) else "tvae"
+    ckpt_dir = f"database/prepared/{dataname}/{_tvae_subdir}"
 
     _, _, categories, d_numerical, num_inverse, cat_inverse = preprocess(
         dataset_dir,

@@ -35,7 +35,11 @@ def _best_from_hyperopt(dataset: str, arch: str, loss_version: int, is_test: boo
     from engine.utils import hyperopt_utils, path_utils
     import os
 
-    base = f"{dataset}_{arch}_loss_version-{loss_version}-{condvec}"
+    # tabddpm uses _model-mlp instead of the condvec suffix
+    if arch == "tabddpm":
+        base = f"{dataset}_{arch}_loss_version-{loss_version}_model-mlp"
+    else:
+        base = f"{dataset}_{arch}_loss_version-{loss_version}-{condvec}"
     if is_test:
         base = "test_" + base
     # Try with module suffix first (current format), then without (legacy)

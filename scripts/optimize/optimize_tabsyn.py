@@ -163,9 +163,9 @@ def objective(params):
         )
 
         if args.row_number is not None:
-            cmd_tvae = f"{sys.executable} -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --row_number {args.row_number}--batch_size_tvae {batch_size_tvae}"
+            cmd_tvae = f"{sys.executable} -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --row_number {args.row_number} --batch_size_tvae {batch_size_tvae} --is_test {args.is_test}"
         else:
-            cmd_tvae = f"{sys.executable} -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --batch_size_tvae {batch_size_tvae}"
+            cmd_tvae = f"{sys.executable} -W ignore models/tabsyn/main.py --method vae --dataname {args.dataset} --batch_size_tvae {batch_size_tvae} --is_test {args.is_test}"
 
         try:
             result_tvae = subprocess.run(

@@ -17,6 +17,30 @@ _LOSS_TO_LV: dict[str, str] = {"vanilla": "lv0", "cd": "lv2"}
 _FAMILY_ALIASES: dict[str, str] = {"ctgan0": "ctgan"}
 
 
+def _find_synthetic_csv(run_dir: Path) -> Path | None:
+    """Return the best available synthetic CSV from a trial directory.
+
+    Prefers synthetic_full.csv (written by the postprocess phase) but falls
+    back to the last fake_{epoch}.csv saved by the optimizer during training.
+    """
+    full = run_dir / "synthetic_full.csv"
+    if full.exists():
+        return full
+    fakes = sorted(run_dir.glob("fake_*.csv"))
+    return fakes[-1] if fakes else None
+
+
+def _read_synthetic_csv(path: Path):
+    """Read a synthetic CSV, auto-detecting tab vs comma separator."""
+    import pandas as pd
+    with open(path, "r", encoding="utf-8") as fh:
+        first_line = fh.readline()
+    sep = "\t" if "\t" in first_line else ","
+    # fake_*.csv files are written with a leading index column
+    index_col = 0 if path.name.startswith("fake_") else None
+    return pd.read_csv(path, sep=sep, index_col=index_col)
+
+
 def _norm_model(model: str) -> str:
     return model.lower()
 
@@ -34,7 +58,7 @@ class StepResult:
     data: dict | None = None
 
 
-def step_preprocess(dataset: str, config_path: str, _dataset_cls=None) -> StepResult:
+def step_preprocess(dataset: str, config_path: str, is_test: int = 0, _dataset_cls=None) -> StepResult:
     """Preprocess *config_path* via GenericDataset and record progress.
 
     *_dataset_cls* is injectable for unit tests so callers can pass a mock
@@ -45,10 +69,10 @@ def step_preprocess(dataset: str, config_path: str, _dataset_cls=None) -> StepRe
         _dataset_cls = GenericDataset
     try:
         _dataset_cls(config_path)
-        progress.mark(dataset, "preprocess", "done")
+        progress.mark(dataset, "preprocess", "done", is_test=bool(is_test))
         return StepResult(ok=True)
     except Exception as exc:
-        progress.mark(dataset, "preprocess", "failed")
+        progress.mark(dataset, "preprocess", "failed", is_test=bool(is_test))
         return StepResult(ok=False, error=exc)
 
 
@@ -87,24 +111,30 @@ def _dispatch_combo(
         return None
 
 
-def _write_family_symlink(dataset: str, best_trial: int, model_key: str) -> None:
+def _write_family_symlink(dataset: str, best_trial: int, model_key: str, is_test: bool = False) -> None:
     family = _model_family(model_key)
     model, loss = model_key.split("-", 1)
     arch = _norm_model(model)
     lv = _LOSS_TO_LV.get(loss, loss)
-    link = Path("database/prepared") / dataset / f"best_{family}"
-    target = Path("../../runs") / f"{dataset}-{arch}-{lv}" / f"trial_{best_trial:04d}"
+    runs_dir = "runs_test" if is_test else "runs"
+    out_dir = Path("database/prepared") / dataset / ("test" if is_test else "")
+    rel_prefix = "../../../" if is_test else "../../"
+    link = out_dir / f"best_{family}"
+    target = Path(f"{rel_prefix}{runs_dir}") / f"{dataset}-{arch}-{lv}" / f"trial_{best_trial:04d}"
     link.parent.mkdir(parents=True, exist_ok=True)
     if link.exists() or link.is_symlink():
         link.unlink()
     link.symlink_to(target)
 
 
-def _write_best_symlink(dataset: str, best_trial: int, model: str, loss: str) -> None:
-    link = Path("database/prepared") / dataset / "best"
+def _write_best_symlink(dataset: str, best_trial: int, model: str, loss: str, is_test: bool = False) -> None:
     arch = _norm_model(model)
     lv = _LOSS_TO_LV.get(loss, loss)
-    target = Path("../../runs") / f"{dataset}-{arch}-{lv}" / f"trial_{best_trial:04d}"
+    runs_dir = "runs_test" if is_test else "runs"
+    out_dir = Path("database/prepared") / dataset / ("test" if is_test else "")
+    rel_prefix = "../../../" if is_test else "../../"
+    link = out_dir / "best"
+    target = Path(f"{rel_prefix}{runs_dir}") / f"{dataset}-{arch}-{lv}" / f"trial_{best_trial:04d}"
     link.parent.mkdir(parents=True, exist_ok=True)
     if link.exists() or link.is_symlink():
         link.unlink()
@@ -138,6 +168,7 @@ def step_train(
                 progress.mark(
                     dataset, "train", "done",
                     model=model_key,
+                    is_test=bool(is_test),
                     best_trial=best_trial,
                     loss=best_loss,
                 )
@@ -149,19 +180,19 @@ def step_train(
                     "best_loss": best_loss,
                 })
             else:
-                progress.mark(dataset, "train", "failed", model=model_key)
+                progress.mark(dataset, "train", "failed", model=model_key, is_test=bool(is_test))
 
     if successes:
         best = min(successes, key=lambda c: c["best_loss"])
-        _write_best_symlink(dataset, best["best_trial"], best["model"], best["loss_name"])
+        _write_best_symlink(dataset, best["best_trial"], best["model"], best["loss_name"], bool(is_test))
 
     return StepResult(ok=bool(successes))
 
 
-def step_evaluate(dataset: str, config_path: str) -> StepResult:
+def step_evaluate(dataset: str, config_path: str, is_test: int = 0) -> StepResult:
     """Rank all trained combos by loss; write eval_summary.json + best_{family}/ symlinks."""
     models_status = (
-        progress.load(dataset)
+        progress.load(dataset, is_test=bool(is_test))
         .get("steps", {}).get("train", {}).get("models", {})
     )
     done = {
@@ -172,7 +203,7 @@ def step_evaluate(dataset: str, config_path: str) -> StepResult:
     }
 
     if not done:
-        progress.mark(dataset, "evaluate", "done")
+        progress.mark(dataset, "evaluate", "done", is_test=bool(is_test))
         return StepResult(ok=True, data={})
 
     family_best: dict[str, dict] = {}
@@ -189,7 +220,7 @@ def step_evaluate(dataset: str, config_path: str) -> StepResult:
     global_best = min(family_best.values(), key=lambda x: x["loss"])
 
     for info in family_best.values():
-        _write_family_symlink(dataset, info["best_trial"], info["model_key"])
+        _write_family_symlink(dataset, info["best_trial"], info["model_key"], bool(is_test))
 
     summary = {
         "family_best": family_best,
@@ -199,7 +230,9 @@ def step_evaluate(dataset: str, config_path: str) -> StepResult:
             for k, v in done.items()
         },
     }
-    summary_path = Path("database/prepared") / dataset / "eval_summary.json"
+    out_dir = Path("database/prepared") / dataset / ("test" if is_test else "")
+    summary_path = out_dir / "eval_summary.json"
+
     def _sanitize(obj):
         if isinstance(obj, float) and (obj != obj or abs(obj) == float("inf")):
             return None
@@ -209,17 +242,18 @@ def step_evaluate(dataset: str, config_path: str) -> StepResult:
             return [_sanitize(v) for v in obj]
         return obj
 
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     with open(summary_path, "w", encoding="utf-8") as fh:
         json.dump(_sanitize(summary), fh, indent=2)
 
-    progress.mark(dataset, "evaluate", "done")
+    progress.mark(dataset, "evaluate", "done", is_test=bool(is_test))
     return StepResult(ok=True, data=summary)
 
 
 def step_postprocess(
     dataset: str,
     config_path: str,
+    is_test: int = 0,
     _dataset_cls=None,
 ) -> StepResult:
     """Postprocess family-best synthetic CSVs and write synthetic_{family}.csv + synthetic_final.csv.
@@ -235,7 +269,7 @@ def step_postprocess(
         _dataset_cls = GenericDataset
 
     models_status = (
-        progress.load(dataset)
+        progress.load(dataset, is_test=bool(is_test))
         .get("steps", {})
         .get("train", {})
         .get("models", {})
@@ -243,43 +277,48 @@ def step_postprocess(
 
     done_models = [k for k, v in models_status.items() if v.get("status") == "done"]
     if not done_models:
-        progress.mark(dataset, "postprocess", "failed")
+        progress.mark(dataset, "postprocess", "failed", is_test=bool(is_test))
         return StepResult(ok=False, error=RuntimeError("No successfully trained models found"))
 
     prepared_dir = Path("database/prepared") / dataset
-    summary_path = prepared_dir / "eval_summary.json"
+    out_dir = prepared_dir / "test" if is_test else prepared_dir
+    summary_path = out_dir / "eval_summary.json"
 
     if summary_path.exists():
         with open(summary_path, "r", encoding="utf-8") as fh:
             eval_summary = json.load(fh)
         family_best = eval_summary.get("family_best", {})
         global_best = eval_summary.get("global_best", {})
-        prepared_dir.mkdir(parents=True, exist_ok=True)
+        out_dir.mkdir(parents=True, exist_ok=True)
 
         for family, info in family_best.items():
             model_key = info["model_key"]
             model, loss = model_key.split("-", 1)
-            synth_path = get_run_dir(
-                dataset, _norm_model(model), _LOSS_TO_LV.get(loss, loss), info["best_trial"]
-            ) / "synthetic_full.csv"
-            if not synth_path.exists():
+            run_dir = get_run_dir(
+                dataset, _norm_model(model), _LOSS_TO_LV.get(loss, loss), info["best_trial"],
+                is_test=bool(is_test),
+            )
+            synth_path = _find_synthetic_csv(run_dir)
+            if synth_path is None:
                 continue
             ds = _dataset_cls(config_path)
-            df_post = ds.postprocess_synthetic(pd.read_csv(synth_path))
-            df_post.to_csv(prepared_dir / f"synthetic_{family}.csv", index=False)
+            df_post = ds.postprocess_synthetic(_read_synthetic_csv(synth_path))
+            df_post.to_csv(out_dir / f"synthetic_{family}.csv", index=False)
 
         if global_best:
             model_key = global_best["model_key"]
             model, loss = model_key.split("-", 1)
-            synth_path = get_run_dir(
-                dataset, _norm_model(model), _LOSS_TO_LV.get(loss, loss), global_best["best_trial"]
-            ) / "synthetic_full.csv"
-            if synth_path.exists():
+            run_dir = get_run_dir(
+                dataset, _norm_model(model), _LOSS_TO_LV.get(loss, loss), global_best["best_trial"],
+                is_test=bool(is_test),
+            )
+            synth_path = _find_synthetic_csv(run_dir)
+            if synth_path is not None:
                 ds = _dataset_cls(config_path)
-                df_post = ds.postprocess_synthetic(pd.read_csv(synth_path))
-                df_post.to_csv(prepared_dir / "synthetic_final.csv", index=False)
+                df_post = ds.postprocess_synthetic(_read_synthetic_csv(synth_path))
+                df_post.to_csv(out_dir / "synthetic_final.csv", index=False)
 
-    progress.mark(dataset, "postprocess", "done")
+    progress.mark(dataset, "postprocess", "done", is_test=bool(is_test))
     return StepResult(ok=True)
 
 
@@ -295,11 +334,11 @@ def run(
     cfg = load_config(config_path)
     dataset = Path(config_path).stem
     model_keys = [f"{gm}-{loss}" for gm in cfg.training.gms for loss in cfg.training.losses]
-    progress.init(dataset, config_path, model_keys)
+    progress.init(dataset, config_path, model_keys, is_test=bool(is_test))
 
-    step_preprocess(dataset, config_path, _dataset_cls=_dataset_cls)
+    step_preprocess(dataset, config_path, is_test=is_test, _dataset_cls=_dataset_cls)
     step_train(dataset, config_path, cfg.training.gms, cfg.training.losses, is_test, max_trials)
-    step_evaluate(dataset, config_path)
-    step_postprocess(dataset, config_path, _dataset_cls=_dataset_cls)
+    step_evaluate(dataset, config_path, is_test)
+    step_postprocess(dataset, config_path, is_test=is_test, _dataset_cls=_dataset_cls)
 
-    return progress.load(dataset)
+    return progress.load(dataset, is_test=bool(is_test))

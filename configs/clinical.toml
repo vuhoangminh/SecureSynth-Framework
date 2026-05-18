@@ -21,7 +21,7 @@ pca_exclude       = []
 missing_noise_std = 0.05
 
 [training]
-gms        = ["CTGAN", "CTGAN0", "TVAE", "TabSyn"]
+gms        = ["CTGAN", "CTGAN0", "TVAE", "CopulaGAN", "TabDDPM", "TabSyn"]
 # losses     = ["vanilla", "cd"]
 losses     = ["cd"]
 epochs     = 10000

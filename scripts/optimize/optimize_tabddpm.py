@@ -281,9 +281,9 @@ def objective(params):
         D = get_dataset(args.dataset)
 
         if args.model_type == "mlp":
-            base_config_path = f"database/dataset/{args.dataset}/config.toml"
+            base_config_path = f"database/prepared/{args.dataset}/config.toml"
         elif args.model_type == "resnet":
-            base_config_path = f"database/dataset/{args.dataset}/config_resnet.toml"
+            base_config_path = f"database/prepared/{args.dataset}/config_resnet.toml"
 
         config_path = generate_config_toml(base_config_path, params, dir_logs)
 

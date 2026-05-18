@@ -163,9 +163,10 @@ def _print_dry_run(cfg, config_path: str) -> None:
     print(f"{'='*W}\n")
 
 
-def _setup_file_logger(dataset: str) -> tuple[Path, logging.Logger]:
+def _setup_file_logger(dataset: str, is_test: bool = False) -> tuple[Path, logging.Logger]:
     """Create (or reuse) a FileHandler logger for *dataset*. Returns (log_path, logger)."""
-    log_path = Path("database/prepared") / dataset / "pipeline.log"
+    out_dir = Path("database/prepared") / dataset / ("test" if is_test else "")
+    log_path = out_dir / "pipeline.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(f"securesynth.{dataset}")
     logger.setLevel(logging.INFO)
@@ -208,12 +209,13 @@ def _print_summary_table(summary: dict, all_labels: list[str], console) -> None:
     console.print(tbl)
 
 
-def _print_output_panel(dataset: str, console) -> None:
+def _print_output_panel(dataset: str, console, is_test: bool = False) -> None:
     from rich.panel import Panel
     prepared_dir = Path("database/prepared") / dataset
-    if not (prepared_dir / "synthetic_final.csv").exists():
+    out_dir = prepared_dir / "test" if is_test else prepared_dir
+    if not (out_dir / "synthetic_final.csv").exists():
         return
-    paths = sorted(prepared_dir.glob("synthetic_*.csv"))
+    paths = sorted(out_dir.glob("synthetic_*.csv"))
     console.print(Panel("\n".join(str(p) for p in paths),
                         title="Output files", border_style="green"))
 
@@ -246,7 +248,7 @@ def run_pipeline(
     from rich.text import Text
 
     dataset = Path(config_path).stem
-    log_path, logger = _setup_file_logger(dataset)
+    log_path, logger = _setup_file_logger(dataset, is_test=bool(is_test))
 
     live_console = _console if _console is not None else Console(stderr=True)
     summary_console = _console if _console is not None else Console()
@@ -259,12 +261,13 @@ def run_pipeline(
     all_labels = ["preprocess", *combos, "evaluate", "postprocess"]
 
     try:
-        progress.init(dataset, config_path, combos)
+        progress.init(dataset, config_path, combos, is_test=bool(is_test))
     except Exception:
         pass
 
     steps = _steps or {}
-    is_done_fn = steps.get("is_done", progress.is_done)
+    _progress_is_done = lambda d, s, m=None: progress.is_done(d, s, m, is_test=bool(is_test))
+    is_done_fn = steps.get("is_done", _progress_is_done)
     summary: dict[str, dict] = {}
 
     _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -323,10 +326,10 @@ def run_pipeline(
         fn = getattr(_o, f"step_{step_name}")
         return fn(dataset, config_path, *a)
 
-    preprocess_fn = steps.get("preprocess", lambda: _default("preprocess"))
+    preprocess_fn = steps.get("preprocess", lambda: _default("preprocess", is_test))
     train_fn      = steps.get("train")
-    evaluate_fn   = steps.get("evaluate",   lambda: _default("evaluate"))
-    postprocess_fn= steps.get("postprocess",lambda: _default("postprocess"))
+    evaluate_fn   = steps.get("evaluate",   lambda: _default("evaluate",   is_test))
+    postprocess_fn= steps.get("postprocess",lambda: _default("postprocess", is_test))
 
     with Live(console=live_console, refresh_per_second=4) as live:
 
@@ -383,7 +386,7 @@ def run_pipeline(
             gm, loss = combo.split("-", 1)
             if is_done_fn(dataset, "train", combo):
                 combo_loss = (
-                    progress.load(dataset)
+                    progress.load(dataset, is_test=bool(is_test))
                     .get("steps", {}).get("train", {}).get("models", {})
                     .get(combo, {}).get("loss")
                 )
@@ -397,7 +400,7 @@ def run_pipeline(
                 fn = lambda g=gm, l=loss: _default("train", [g], [l], is_test, max_trials)
             _run_step(combo, fn)
             combo_loss = (
-                progress.load(dataset)
+                progress.load(dataset, is_test=bool(is_test))
                 .get("steps", {}).get("train", {}).get("models", {})
                 .get(combo, {}).get("loss")
             )
@@ -407,7 +410,7 @@ def run_pipeline(
 
         _run_step("evaluate", evaluate_fn, step_key="evaluate")
 
-        eval_summary_path = Path("database/prepared") / dataset / "eval_summary.json"
+        eval_summary_path = Path("database/prepared") / dataset / ("test" if is_test else "") / "eval_summary.json"
         if eval_summary_path.exists():
             try:
                 with open(eval_summary_path) as fh:
@@ -439,7 +442,7 @@ def run_pipeline(
 
     logger.info(f"DONE  pipeline finished. Log: {log_path}")
     _print_summary_table(summary, all_labels, summary_console)
-    _print_output_panel(dataset, summary_console)
+    _print_output_panel(dataset, summary_console, is_test=bool(is_test))
     return summary
 
 

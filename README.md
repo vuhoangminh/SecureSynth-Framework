@@ -78,6 +78,82 @@ The PREDICT cohort datasets are organized into three GDPR regulatory levels:
 
 ---
 
+## Quick Start
+
+### 1. Environment setup
+
+```bash
+bash scripts/envs/biobank.sh
+conda activate biobank312
+```
+
+### 2. Prepare a config file
+
+Drop your dataset in `database/raw/` and create a config in `configs/`. See [`configs/README.md`](configs/README.md) for all fields. A minimal example:
+
+```toml
+[data]
+path   = "database/raw/clinical.csv"
+format = "csv"
+drop_columns = ["patient_id"]
+
+[columns]
+continuous = ["age", "bmi", "glucose"]
+discrete   = ["sex", "diagnosis"]
+target     = "mortality"
+task       = "classification"
+
+[training]
+gms    = ["CTGAN", "TVAE", "TabSyn"]
+losses = ["cd"]
+epochs = 10000
+
+[output]
+output_dir = "output/clinical/synthetic/"
+```
+
+### 3. Validate config (no files written)
+
+```bash
+PYTHONPATH=. python run.py --config configs/clinical.toml --dry-run
+```
+
+### 4. Smoke test (fast, ~5 min)
+
+Runs 20 epochs and 2 IORBO trials per model. All outputs go to
+`database/prepared/<dataset>/test/` so they never overwrite production results.
+
+```bash
+PYTHONPATH=. python run.py --config configs/clinical.toml --test
+```
+
+### 5. Full production run
+
+```bash
+PYTHONPATH=. python run.py --config configs/clinical.toml
+```
+
+Outputs written to `database/prepared/<dataset>/`:
+
+| File | Description |
+|------|-------------|
+| `synthetic_final.csv` | Best overall synthetic dataset (postprocessed) |
+| `synthetic_<model>.csv` | Best per-model synthetic dataset |
+| `eval_summary.json` | Loss rankings across all model×loss combos |
+| `best` → symlink | Trial directory of the global best run |
+| `best_<model>` → symlinks | Trial directory of the best run per model family |
+
+### 6. Cleanup before re-running a test
+
+```bash
+rm -rf \
+  database/runs_test/<dataset>-* \
+  database/prepared/<dataset>/test \
+  database/optimization/generative_model/test_<dataset>_*
+```
+
+---
+
 ## Framework Pipeline
 
 ```text
