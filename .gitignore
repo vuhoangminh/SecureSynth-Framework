@@ -158,6 +158,9 @@ database/synthetic/
 *.pickle
 *.toml
 !configs/*.toml
+# Sensitive: grant-panel and reviewer correspondence — never commit
+docs/papers/reviews_panel.txt
+docs/papers/Matters Arising Ndm.docx
 
 output/
 *.data
@@ -169,6 +172,5 @@ scripts/jobs/
 scripts/jobs_bianca/
 scripts/jobs_sbo_mean/
 scripts/jobs_sbo_median/
-*.pdf
 *.png
 *.pkl
