@@ -170,9 +170,10 @@ Sensitive Data + Configuration File
         │  • Optional: formal DP training (Rényi DP + opacus)
         │
         ▼  Evaluation & Model Ranking
-        │  • Statistical similarity (KL divergence, Wasserstein, correlation)
-        │  • ML utility: Train-Synthetic-Test-Real (TSTR), AUROC
-        │  • Privacy: (ε, δ) accounting, empirical disclosure risk
+        │  • Rank all model×loss combos by IORBO loss
+        │  • Write eval_summary.json (family best, global best)
+        │  • Write best_{family}/ symlinks to best trial dirs
+        │  • Full statistical/ML/privacy metrics: evaluate_technical_paper.py (post-hoc)
         │
         ▼  Quality Control
         │  • Domain-informed sanity checks (sex-specific cancer patterns, etc.)

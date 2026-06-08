@@ -243,16 +243,14 @@ constraints = [
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `n_samples` | int or null | `null` | Number of synthetic rows to generate. When `null` (omitted), matches the row count of the input dataset. |
-| `output_dir` | string | `"output/{dataset_name}/synthetic/"` | Directory where synthetic CSV files are written. The placeholder `{dataset_name}` is substituted at runtime. |
-| `report` | bool | `false` | Whether to generate an HTML evaluation report (SDMetrics) alongside the synthetic CSV. |
+| `output_dir` | string | — | **Parsed but not used by the pipeline.** All outputs are written to `database/prepared/<dataset>/` regardless of this value. |
+| `report` | bool | `false` | **Parsed but not used by the pipeline.** SDMetrics HTML report generation is not implemented. |
 
 **Example**
 
 ```toml
 [output]
-n_samples  = 5000
-output_dir = "output/clinical/synthetic/"
-report     = true
+n_samples = 5000
 ```
 
 ---
@@ -303,6 +301,5 @@ constraints = [
 ]
 
 [output]
-output_dir = "output/clinical/synthetic/"
-report     = true
+n_samples = null  # null = match input row count
 ```
