@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from joblib import Parallel, delayed
 from scipy import stats
 from scipy.stats import entropy, multivariate_normal
+from scipy.optimize import brentq
 
 # Custom packages/modules
 from engine.datasets import get_dataset
@@ -839,6 +840,102 @@ def compute_domiasmia(
 # ---------------------------------------------------------------------------
 # ML methods - end
 # ===========================================================================
+
+
+# ===========================================================================
+# GDP framework — interpretable approximation (Dong-Roth-Su 2022, mu-GDP)
+# ---------------------------------------------------------------------------
+# These functions are CLT approximations, not certified bounds.  Use alongside
+# the PRV/FFT certified envelope (get_privacy_spent_prv in rdp_accountant.py):
+# | Layer              | Tool           | Use                                  |
+# | Certified bound    | PRV/FFT        | get_privacy_spent_prv → ROC envelope |
+# | Interpretable appr | GDP (below)    | figures; threshold anchor 2          |
+# ---------------------------------------------------------------------------
+
+def gdp_predicted_roc(mu, fpr_grid):
+    """CLT-GDP predicted ROC curve for a mu-GDP mechanism (Dong-Roth-Su 2022).
+
+    TPR = Phi(Phi^{-1}(FPR) + mu).  This is the optimal MIA adversary's ROC
+    under mu-GDP — an analytic approximation valid in the CLT limit.  At finite
+    step counts it can be optimistic; always plot alongside the PRV-certified
+    envelope and label as approximation.
+
+    Args:
+        mu:        GDP parameter (non-negative float).
+        fpr_grid:  1-D array of FPR values in [0, 1].
+
+    Returns:
+        TPR array of the same shape as fpr_grid.
+    """
+    fpr_grid = np.asarray(fpr_grid, dtype=float)
+    return stats.norm.cdf(stats.norm.ppf(fpr_grid) + mu)
+
+
+def gdp_max_auc(mu):
+    """Maximum MIA AUC achievable against a mu-GDP mechanism: Phi(mu / sqrt(2)).
+
+    Useful for Pillar 4 threshold anchor 2 — set an AUC budget, invert via
+    auc_target_to_mu, then map to (epsilon, delta) via mu_gdp_to_epsilon.
+
+    Args:
+        mu: GDP parameter (non-negative float).
+
+    Returns:
+        float in [0.5, 1].
+    """
+    return float(stats.norm.cdf(mu / np.sqrt(2)))
+
+
+def auc_target_to_mu(auc_target):
+    """Invert AUC_max = Phi(mu/sqrt(2)) to get the mu-GDP budget implied by an AUC cap.
+
+    Example: auc_target=0.6 → mu ≈ 0.36, which you can then convert to (epsilon, delta)
+    via mu_gdp_to_epsilon.  This makes epsilon a consequence of an agreed risk appetite
+    rather than an arbitrary pick (Pillar 4 anchor 2).
+
+    Args:
+        auc_target: desired maximum MIA AUC, in (0.5, 1).
+
+    Returns:
+        float mu >= 0.
+    """
+    if not 0.5 < auc_target < 1.0:
+        raise ValueError("auc_target must be in (0.5, 1)")
+    return float(np.sqrt(2) * stats.norm.ppf(auc_target))
+
+
+def mu_gdp_to_epsilon(mu, delta):
+    """Convert mu-GDP to (epsilon, delta)-DP via the exact Gaussian DP trade-off.
+
+    For mu-GDP the (epsilon, delta) pair satisfies:
+        delta(epsilon) = Phi(-epsilon/mu + mu/2) - exp(epsilon) * Phi(-epsilon/mu - mu/2)
+
+    This inverts numerically.  Result is an approximation because mu-GDP itself
+    is a CLT approximation at finite step counts — use get_privacy_spent_prv for
+    the certified bound; use this only for threshold selection / interpretation.
+
+    Args:
+        mu:    GDP parameter (non-negative float).
+        delta: target delta (use <= 1e-6 for PREDICT).
+
+    Returns:
+        float epsilon.
+    """
+    if mu <= 0:
+        raise ValueError("mu must be positive")
+    if not 0 < delta < 1:
+        raise ValueError("delta must be in (0, 1)")
+
+    def _delta_at_eps(eps):
+        return (
+            stats.norm.cdf(-eps / mu + mu / 2)
+            - np.exp(eps) * stats.norm.cdf(-eps / mu - mu / 2)
+        )
+
+    # delta(eps) is decreasing in eps; find the root of delta(eps) - delta = 0
+    if _delta_at_eps(0) < delta:
+        return 0.0
+    return float(brentq(lambda e: _delta_at_eps(e) - delta, 0, 500))
 
 
 # ===========================================================================

@@ -262,6 +262,7 @@ def make_meters_ctgan():
         "dp_sigma": logger.ValueMeter(),
         "dp_weight_clip": logger.ValueMeter(),
         "dp_epsilon": logger.ValueMeter(),
+        "dp_epsilon_prv": logger.ValueMeter(),
         "dp_delta": logger.ValueMeter(),
         "dp_opt_order": logger.ValueMeter(),
     }
@@ -277,5 +278,9 @@ def make_meters_tvae():
         "metric_corr": logger.AvgMeter(),
         "metric_dwp": logger.AvgMeter(),
         "epoch_time": logger.ValueMeter(),
+        "dp_sigma": logger.ValueMeter(),
+        "dp_epsilon": logger.ValueMeter(),
+        "dp_epsilon_prv": logger.ValueMeter(),
+        "dp_delta": logger.ValueMeter(),
     }
     return meters_dict

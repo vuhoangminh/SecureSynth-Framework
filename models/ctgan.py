@@ -24,7 +24,7 @@ from engine.ctgan_data_sampler import MyDataset, compute_q_max
 from engine.ctgan_data_transformer import DataTransformer
 
 from ctgan.synthesizers.base import BaseSynthesizer, random_state
-from engine.rdp_accountant import compute_rdp, get_privacy_spent
+from engine.rdp_accountant import compute_rdp, get_privacy_spent, get_privacy_spent_prv
 
 from engine.utils.model_utils import save_checkpoint
 import engine.utils.train_utils as train_utils
@@ -911,16 +911,21 @@ class CTGAN(BaseSynthesizer):
         # Added by Minh -- DP fix: compute and log the final release certificate.
         # This is the number that goes on the ethics board report.
         if self.private:
-            delta = 2e-6
-            epsilon = _dp_accountant.get_epsilon(delta=delta)
+            # delta <= 1/N per Pillar 4 structural rule (PREDICT N~50k → delta <= 1e-5;
+            # use 1e-6 for a 10x margin and consistency with the certified ROC envelope).
+            delta = 1e-6
+            epsilon_rdp = _dp_accountant.get_epsilon(delta=delta)
+            epsilon_prv, _ = get_privacy_spent_prv(_dp_accountant.history, delta=delta)
             print_utils.print_separator()
             print(
                 "DP certificate: training complete. "
-                "eps = {:.3g}, delta = {}, steps = {}, sigma = {}.".format(
-                    epsilon, delta, _dp_total_steps, self.dp_sigma
+                "eps_rdp = {:.3g}, eps_prv = {:.3g} (tighter), "
+                "delta = {}, steps = {}, sigma = {}.".format(
+                    epsilon_rdp, epsilon_prv, delta, _dp_total_steps, self.dp_sigma
                 )
             )
-            meters["dp_epsilon"].update(epsilon)
+            meters["dp_epsilon"].update(epsilon_rdp)
+            meters["dp_epsilon_prv"].update(epsilon_prv)
             meters["dp_delta"].update(delta)
             exp_logger.to_json(os.path.join(self.args.dir_logs, "logger.json"))
         # Added by Minh -- DP fix

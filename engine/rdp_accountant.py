@@ -680,3 +680,45 @@ def get_privacy_spent(orders, rdp, target_eps=None, target_delta=None):
     else:
         eps, opt_order = _compute_eps(orders, rdp, target_delta)
         return eps, target_delta, opt_order
+
+
+# ===========================================================================
+# Accounting improvements beyond Mironov 2017 + Balle-Barthe-Gaboardi 2018
+# ---------------------------------------------------------------------------
+# | Layer                | Tool                  | Role                          |
+# | Foundation           | Mironov RDP + BBG     | Firm; used above              |
+# | Tighter conversion   | Balle 2020            | Already in _compute_eps:289   |
+# | Exact composition    | PRV/FFT (below)       | Certified ROC for Experiment 2|
+# | Interpretable approx | GDP (eval_dp_utils)   | Figures only; CLT approx      |
+# ===========================================================================
+
+def get_privacy_spent_prv(history, delta):
+    """Compute (epsilon, delta) via the PRV/FFT accountant (Gopi-Lee-Wutschitz, NeurIPS 2021).
+
+    Uses exact numerical composition rather than the RDP upper bound, giving a
+    tighter certified epsilon — needed to produce the certified attack-ROC envelope
+    in Experiment 2 (the RDP accountant gives a single (eps,delta) point, not a
+    trade-off curve; use this result paired with gdp_predicted_roc in eval_dp_utils
+    for the figure).
+
+    Args:
+        history: list of (noise_multiplier, sample_rate, num_steps) tuples, one
+                 per training stage.  For two-stage DP-TabSyn pass both stages:
+                 [(sigma_ae, q, T_ae), (sigma_diff, q, T_diff)].
+        delta:   target delta (use <= 1e-6 for PREDICT, per Pillar 4 anchor).
+
+    Returns:
+        Tuple (epsilon, delta).
+    """
+    try:
+        from opacus.accountants import PRVAccountant
+    except ImportError:
+        raise ImportError(
+            "PRVAccountant requires opacus >= 1.4. "
+            "Install with: pip install opacus>=1.4"
+        )
+
+    acc = PRVAccountant()
+    acc.history = list(history)
+    eps = acc.get_epsilon(delta=delta)
+    return float(eps), float(delta)
