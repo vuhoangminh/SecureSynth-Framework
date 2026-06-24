@@ -1,1 +1,0 @@
-../../obsidian/projects/research/SecureSynth-Framework/docs/repo-cleanup-plan.md

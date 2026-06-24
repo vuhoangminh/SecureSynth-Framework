@@ -347,3 +347,32 @@ class MyCustomDataset(Dataset):
 
     def __getitem__(self, idx):
         return self._data[idx]
+
+
+def compute_q_max(data_sampler, batch_size):
+    # Conservative upper bound on the worst-case per-record Poisson inclusion probability
+    # when using CTGAN's conditional sampler (log-frequency weighted category selection).
+    # A batch slot selects column j uniformly (1/n_cols), then category c with prob p[j,c],
+    # then a record from that category uniformly (1/count[j,c]).  For a given record r the
+    # per-slot rate is Σ_j (1/n_cols)·p[j,val_r[j]]/count[j,val_r[j]].  The upper bound
+    # avoids iterating all N records by taking, for each column, the category with the
+    # highest p_cat/count ratio:
+    #   q_per_slot ≤ (1/n_cols) × Σ_j max_c [ p[j,c] / count(j,c) ]
+    # Returns batch_size × q_per_slot.  Feed this to the RDP accountant instead of B/N
+    # when is_condvec=True so the certificate is valid (conservatively).
+    if data_sampler._n_discrete_columns == 0:
+        return batch_size / len(data_sampler._data)
+
+    n_cols = data_sampler._n_discrete_columns
+    q_per_slot = 0.0
+    for col_id in range(n_cols):
+        n_cats = int(data_sampler._discrete_column_n_category[col_id])
+        col_max = 0.0
+        for cat_id in range(n_cats):
+            p_cat = float(data_sampler._discrete_column_category_prob[col_id, cat_id])
+            n_records = len(data_sampler._rid_by_cat_cols[col_id][cat_id])
+            if n_records > 0:
+                col_max = max(col_max, p_cat / n_records)
+        q_per_slot += col_max / n_cols
+
+    return batch_size * q_per_slot

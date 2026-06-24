@@ -1,1 +1,0 @@
-../../obsidian/projects/research/SecureSynth-Framework/docs/model-family-comparison-visualization.md

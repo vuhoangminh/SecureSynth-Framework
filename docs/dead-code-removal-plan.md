@@ -1,1 +1,0 @@
-../../obsidian/projects/research/SecureSynth-Framework/docs/dead-code-removal-plan.md

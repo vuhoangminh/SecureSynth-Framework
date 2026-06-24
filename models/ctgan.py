@@ -20,7 +20,7 @@ from torch.nn import (
 )
 
 # from ctgan.data_sampler import DataSampler
-from engine.ctgan_data_sampler import MyDataset
+from engine.ctgan_data_sampler import MyDataset, compute_q_max
 from engine.ctgan_data_transformer import DataTransformer
 
 from ctgan.synthesizers.base import BaseSynthesizer, random_state
@@ -491,22 +491,45 @@ class CTGAN(BaseSynthesizer):
                 self.args.start_epoch = 0
         # Added by Minh -- load
 
-        """
-        # Added by Minh -- opacus
-        self._dataloader = MyDataLoader(self._data_sampler, batch_size=self._batch_size)
-        if True:
-            privacy_engine = PrivacyEngine(secure_mode=False)
+        # Added by Minh -- DP fix
+        # Previous approach (incorrect, see hook block below):
+        #   register_hook on each parameter added noise to the aggregate gradient Σ_i g_i.
+        #   Problem 1: no per-sample clipping → sensitivity unbounded → RDP formula α/(2σ²)
+        #     does not apply → reported (ε,δ) was invalid.
+        #   Problem 2: weight clamping (WGAN trick) bounds weight magnitudes, not gradient
+        #     sensitivity, and provides no formal DP guarantee.
+        # New approach (correct):
+        #   GradSampleModule hooks into backward at each layer to capture each record's
+        #   gradient before accumulation, clips it to norm C (bounded sensitivity = C), then
+        #   DPOptimizer sums the clipped gradients and adds N(0, σ²C²I). RDP formula applies.
+        #   RDPAccountant accumulates one step per discriminator update and converts to (ε,δ)
+        #   after training via Mironov Prop. 1 + Prop. 3.
+        # Note: pac>1 means the DP unit is a group of pac records, not individual records.
+        #   For per-record DP, set pac=1.
+        if self.private:
+            from opacus.grad_sample import GradSampleModule
+            from opacus.optimizers import DPOptimizer
+            from opacus.accountants import RDPAccountant
 
-            self._generator, optimizerG, self._dataloader = privacy_engine.make_private(
-                module=self._generator,
-                optimizer=optimizerG,
-                data_loader=self._dataloader,
-                noise_multiplier=1.0,
-                max_grad_norm=1.0,
+            _dp_clip_norm = 1.0
+            # Condvec oversamples log-frequency-weighted rare categories, so q=B/N is invalid.
+            # Use compute_q_max (upper bound on worst-case per-record inclusion probability)
+            # when condvec is active; uniform sampling (q=B/N) is correct for the no-condvec path.
+            _dp_sample_rate = (
+                compute_q_max(self._data_sampler, self._batch_size)
+                if self.is_condvec
+                else self._batch_size / len(train_data)
             )
-        # dataiter = iter(self._dataloader)
-        # Added by Minh -- opacus
-        """
+            _dp_total_steps = 0
+            discriminator = GradSampleModule(discriminator)
+            optimizerD = DPOptimizer(
+                optimizer=optimizerD,
+                noise_multiplier=self.dp_sigma,
+                max_grad_norm=_dp_clip_norm,
+                expected_batch_size=self._batch_size,
+            )
+            _dp_accountant = RDPAccountant()
+        # Added by Minh -- DP fix
 
         mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
@@ -518,18 +541,19 @@ class CTGAN(BaseSynthesizer):
         start_epoch = time.time()
         # Added by Minh -- logger
 
-        # Added by Minh -- DP
-        # we moved it out of the loop because  we want to register it only once
-        # for the whole training. Otherwise we add a new hook everytime and
-        # we will have many hooks which makes epoch time increase over epoch
-        if self.private:
-            for parameter in discriminator.parameters():
-                parameter.register_hook(
-                    lambda grad: grad.cuda()
-                    + (1 / self._batch_size)
-                    * self.dp_sigma
-                    * torch.randn(parameter.shape).cuda()
-                )
+        # Added by Minh -- DP (original approach, replaced by Opacus above)
+        # Hook was moved out of the epoch loop to register only once — otherwise each epoch
+        # added another hook and training slowed linearly (100 epochs → 100× more noise per
+        # backward). That placement fix was correct, but the hook itself was wrong:
+        # noise was added to the aggregate gradient, not per-sample gradients (see DP fix above).
+        # if self.private:
+        #     for parameter in discriminator.parameters():
+        #         parameter.register_hook(
+        #             lambda grad: grad.cuda()
+        #             + (1 / self._batch_size)
+        #             * self.dp_sigma
+        #             * torch.randn(parameter.shape).cuda()
+        #         )
         # Added by Minh -- DP
 
         train_data_tensor = torch.tensor(train_data).to(self._device)
@@ -585,9 +609,6 @@ class CTGAN(BaseSynthesizer):
                     y_fake = discriminator(fake_cat)
                     y_real = discriminator(real_cat)
 
-                    pen = discriminator.calc_gradient_penalty(
-                        real_cat, fake_cat, self._device, self.pac
-                    )
                     loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
 
                     # Added by Minh -- logger
@@ -595,19 +616,32 @@ class CTGAN(BaseSynthesizer):
                     # Added by Minh -- logger
 
                     optimizerD.zero_grad(set_to_none=False)
-                    pen.backward(retain_graph=True)
+
+                    # Added by Minh -- DP fix: gradient penalty skipped when private.
+                    # calc_gradient_penalty mixes real and fake samples via interpolates —
+                    # incompatible with Opacus per-sample gradient tracking. Opacus gradient
+                    # clipping already enforces a bounded update norm. When not private, the
+                    # gradient penalty is computed as before for WGAN Lipschitz enforcement.
+                    if not self.private:
+                        pen = discriminator.calc_gradient_penalty(
+                            real_cat, fake_cat, self._device, self.pac
+                        )
+                        pen.backward(retain_graph=True)
                     loss_d.backward()
                     optimizerD.step()
 
-                    # Added by Minh -- DP
+                    # Added by Minh -- DP fix: accumulate RDP after each discriminator step.
+                    # Old weight clipping (incorrect — WGAN trick, not a DP mechanism):
+                    # if self.private:
+                    #     for param in discriminator.parameters():
+                    #         param.data.clamp_(-self.dp_weight_clip, self.dp_weight_clip)
                     if self.private:
-                        # Weight clipping for privacy guarantee
-                        for param in discriminator.parameters():
-                            param.data.clamp_(
-                                -self.dp_weight_clip,
-                                self.dp_weight_clip,
-                            )
-                    # Added by Minh -- DP
+                        _dp_accountant.step(
+                            noise_multiplier=self.dp_sigma,
+                            sample_rate=_dp_sample_rate,
+                        )
+                        _dp_total_steps += 1
+                    # Added by Minh -- DP fix
 
                 fakez = torch.normal(mean=mean, std=std)
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
@@ -771,20 +805,23 @@ class CTGAN(BaseSynthesizer):
 
                 # print_utils.print_separator()
 
-                # Added by Minh -- DP
+                # Added by Minh -- DP fix
+                # Old code used compute_rdp with steps=i_epoch*steps_per_epoch, which was
+                # off by one full epoch (0 steps reported on epoch 1) and assumed the
+                # mechanism preconditions were met (they were not). Now epsilon comes from
+                # _dp_accountant which tracks the exact step count; opt_order is derived from
+                # compute_rdp with the correct _dp_total_steps for backward-compat logging.
                 if self.private:
-                    orders = [1 + x / 10.0 for x in range(1, 100)]
-                    sampling_probability = self._batch_size / len(train_data)
                     delta = 2e-6
+                    epsilon = _dp_accountant.get_epsilon(delta=delta)
+                    orders = [1 + x / 10.0 for x in range(1, 100)]
                     rdp = compute_rdp(
-                        q=sampling_probability,
+                        q=_dp_sample_rate,
                         noise_multiplier=self.dp_sigma,
-                        steps=i_epoch * steps_per_epoch,
+                        steps=_dp_total_steps,
                         orders=orders,
                     )
-                    epsilon, _, opt_order = get_privacy_spent(
-                        orders, rdp, target_delta=delta
-                    )  # target_delta=1e-5
+                    _, _, opt_order = get_privacy_spent(orders, rdp, target_delta=delta)
 
                     print_utils.print_separator()
                     print(
@@ -799,8 +836,6 @@ class CTGAN(BaseSynthesizer):
                             "The privacy estimate is likely to be improved by expanding the set of orders."
                         )
 
-                    # print_utils.print_separator()
-
                     meters["dp_sigma"].update(self.dp_sigma)
                     meters["dp_weight_clip"].update(self.dp_weight_clip)
                     meters["dp_epsilon"].update(epsilon)
@@ -808,7 +843,7 @@ class CTGAN(BaseSynthesizer):
                     meters["dp_opt_order"].update(opt_order)
                 else:
                     epsilon = np.nan
-                # Added by Minh -- DP
+                # Added by Minh -- DP fix
 
             # Added by Minh -- save model + sample
             # if (
@@ -872,6 +907,23 @@ class CTGAN(BaseSynthesizer):
                 os.path.join(self.args.dir_logs, "logger.json")
             )  # overwrite logger.json after each epoch
             # Added by Minh -- save model + sample
+
+        # Added by Minh -- DP fix: compute and log the final release certificate.
+        # This is the number that goes on the ethics board report.
+        if self.private:
+            delta = 2e-6
+            epsilon = _dp_accountant.get_epsilon(delta=delta)
+            print_utils.print_separator()
+            print(
+                "DP certificate: training complete. "
+                "eps = {:.3g}, delta = {}, steps = {}, sigma = {}.".format(
+                    epsilon, delta, _dp_total_steps, self.dp_sigma
+                )
+            )
+            meters["dp_epsilon"].update(epsilon)
+            meters["dp_delta"].update(delta)
+            exp_logger.to_json(os.path.join(self.args.dir_logs, "logger.json"))
+        # Added by Minh -- DP fix
 
         if self.args.row_number_full is not None:
             print_utils.print_processing("generate full synthetic data")

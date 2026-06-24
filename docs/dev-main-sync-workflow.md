@@ -1,1 +1,0 @@
-../../obsidian/projects/research/SecureSynth-Framework/docs/dev-main-sync-workflow.md
