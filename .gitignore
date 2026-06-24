@@ -174,3 +174,4 @@ scripts/jobs_sbo_mean/
 scripts/jobs_sbo_median/
 *.png
 *.pkl
+.serena/
