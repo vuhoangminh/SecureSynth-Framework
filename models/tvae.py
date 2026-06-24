@@ -24,6 +24,7 @@ from engine.custom_loss import (
     DistributionLoss,
     NormalizedDistributionLoss,
 )
+from engine.rdp_accountant import compute_rdp, get_privacy_spent
 
 
 class Encoder(Module):
@@ -99,6 +100,18 @@ class Decoder(Module):
         return self.seq(input_), self.sigma
 
 
+class _VAEModule(Module):
+    """Combined encoder+decoder module so Opacus GradSampleModule can wrap both."""
+
+    def __init__(self, encoder, decoder):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, x):
+        raise NotImplementedError("call .encoder and .decoder directly")
+
+
 def _loss_function(recon_x, x, sigmas, mu, logvar, output_info, factor):
     st = 0
     loss = []
@@ -147,6 +160,8 @@ class TVAE(BaseSynthesizer):
         is_loss_dwp=0,
         n_moment_loss_dwp=4,
         checkpoint_freq=50,
+        private=False,
+        dp_sigma=1.0,
     ):
         # Added by Minh
         self.args = args
@@ -154,6 +169,8 @@ class TVAE(BaseSynthesizer):
         self.is_loss_corr = is_loss_corr
         self.is_loss_dwp = is_loss_dwp
         self.n_moment_loss_dwp = n_moment_loss_dwp
+        self.private = private
+        self.dp_sigma = dp_sigma
         # Added by Minh
 
         self.embedding_dim = embedding_dim
@@ -206,7 +223,7 @@ class TVAE(BaseSynthesizer):
             torch.from_numpy(train_data.astype("float32")).to(self._device)
         )
         loader = DataLoader(
-            dataset, batch_size=self.batch_size, shuffle=True, drop_last=False
+            dataset, batch_size=self.batch_size, shuffle=True, drop_last=self.private
         )
 
         data_dim = self.transformer.output_dimensions
@@ -254,6 +271,50 @@ class TVAE(BaseSynthesizer):
                 self.args.start_epoch = 0
         # Added by Minh -- load
 
+        # Added by Minh -- DP
+        # Previous approach (would have been wrong): register_hook on each parameter to add
+        #   noise to the aggregate gradient Σ_i g_i — no per-sample clipping, unbounded
+        #   sensitivity, so the RDP formula α/(2σ²) does not apply.
+        # if self.private:
+        #     for parameter in list(encoder.parameters()) + list(self.decoder.parameters()):
+        #         parameter.register_hook(
+        #             lambda grad: grad
+        #             + (1 / self.batch_size)
+        #             * self.dp_sigma
+        #             * torch.randn(grad.shape).to(self._device)
+        #         )
+        # New approach: wrap encoder+decoder in _VAEModule so GradSampleModule installs
+        #   per-sample gradient hooks on both (both see real data via reconstruction loss).
+        #   DPOptimizer clips each per-sample gradient to norm C (bounded sensitivity) and
+        #   adds N(0, σ²C²I). RDPAccountant tracks one step per optimizerAE.step() call.
+        # Note: decoder.sigma is a standalone Parameter — Opacus does not install a
+        #   grad_sample hook for it and DPOptimizer would raise if it encountered it.
+        #   sigma is therefore excluded from the DPOptimizer and updated by _sigma_optimizer.
+        # Note: DataLoader uses drop_last=True when private so DPOptimizer always receives
+        #   exactly expected_batch_size records (a smaller last batch breaks accounting).
+        if self.private:
+            from opacus.grad_sample import GradSampleModule
+            from opacus.optimizers import DPOptimizer
+            from opacus.accountants import RDPAccountant
+
+            _dp_clip_norm = 1.0
+            _dp_sample_rate = self.batch_size / len(train_data)
+            _dp_total_steps = 0
+            _vae = GradSampleModule(_VAEModule(encoder, self.decoder))
+            encoder = _vae.encoder
+            self.decoder = _vae.decoder
+            # sigma excluded: no grad_sample hook → must not be in DPOptimizer param list
+            _dp_params = [p for n, p in _vae.named_parameters() if "sigma" not in n]
+            optimizerAE = DPOptimizer(
+                optimizer=Adam(_dp_params, weight_decay=self.l2scale),
+                noise_multiplier=self.dp_sigma,
+                max_grad_norm=_dp_clip_norm,
+                expected_batch_size=self.batch_size,
+            )
+            _sigma_optimizer = Adam([self.decoder.sigma], weight_decay=self.l2scale)
+            _dp_accountant = RDPAccountant()
+        # Added by Minh -- DP
+
         # Added by Minh -- logger
         meters = exp_logger.reset_meters("train")
         start_epoch = time.time()
@@ -263,7 +324,11 @@ class TVAE(BaseSynthesizer):
             if self.args.resume and i_epoch < self.args.start_epoch:
                 continue
             for id_, data in enumerate(loader):
-                optimizerAE.zero_grad()
+                optimizerAE.zero_grad(set_to_none=False)
+                # Added by Minh -- DP
+                if self.private:
+                    _sigma_optimizer.zero_grad(set_to_none=False)
+                # Added by Minh -- DP
                 real = data[0].to(self._device)
                 mu, std, logvar = encoder(real)
                 eps = torch.randn_like(std)
@@ -349,6 +414,17 @@ class TVAE(BaseSynthesizer):
 
                 loss.backward()
                 optimizerAE.step()
+
+                # Added by Minh -- DP
+                if self.private:
+                    _sigma_optimizer.step()
+                    _dp_accountant.step(
+                        noise_multiplier=self.dp_sigma,
+                        sample_rate=_dp_sample_rate,
+                    )
+                    _dp_total_steps += 1
+                # Added by Minh -- DP
+
                 self.decoder.sigma.data.clamp_(0.01, 1.0)
 
             # measure elapsed time
@@ -408,6 +484,35 @@ class TVAE(BaseSynthesizer):
                     f"{txt_corr:<25s} {txt_dwp:<25s} {txt_metric_corr:<25s} {txt_metric_dwp:<25s}"
                 )
 
+                # Added by Minh -- DP
+                if self.private:
+                    delta = 2e-6
+                    epsilon = _dp_accountant.get_epsilon(delta=delta)
+                    orders = [1 + x / 10.0 for x in range(1, 100)]
+                    rdp = compute_rdp(
+                        q=_dp_sample_rate,
+                        noise_multiplier=self.dp_sigma,
+                        steps=_dp_total_steps,
+                        orders=orders,
+                    )
+                    _, _, opt_order = get_privacy_spent(orders, rdp, target_delta=delta)
+                    print_utils.print_separator()
+                    print(
+                        "differential privacy with eps = {:.3g} and delta = {}.".format(
+                            epsilon, delta
+                        )
+                    )
+                    print("The optimal RDP order is {}.".format(opt_order))
+                    if opt_order == max(orders) or opt_order == min(orders):
+                        print(
+                            "The privacy estimate is likely to be improved by expanding the set of orders."
+                        )
+                    meters["dp_sigma"].update(self.dp_sigma)
+                    meters["dp_epsilon"].update(epsilon)
+                    meters["dp_delta"].update(delta)
+                    meters["dp_opt_order"].update(opt_order)
+                # Added by Minh -- DP
+
             # Added by Minh -- save model + sample
             # if (
             #     self.checkpoint_freq is not None
@@ -464,6 +569,22 @@ class TVAE(BaseSynthesizer):
                 os.path.join(self.args.dir_logs, "logger.json")
             )  # overwrite logger.json after each epoch
             # Added by Minh -- save model + sample
+
+        # Added by Minh -- DP
+        if self.private:
+            delta = 2e-6
+            epsilon = _dp_accountant.get_epsilon(delta=delta)
+            print_utils.print_separator()
+            print(
+                "DP certificate: training complete. "
+                "eps = {:.3g}, delta = {}, steps = {}, sigma = {}.".format(
+                    epsilon, delta, _dp_total_steps, self.dp_sigma
+                )
+            )
+            meters["dp_epsilon"].update(epsilon)
+            meters["dp_delta"].update(delta)
+            exp_logger.to_json(os.path.join(self.args.dir_logs, "logger.json"))
+        # Added by Minh -- DP
 
         if self.args.row_number_full is not None:
             print_utils.print_processing("generate full synthetic data")
