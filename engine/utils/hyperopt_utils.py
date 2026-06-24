@@ -322,7 +322,7 @@ class IncrementalObjectiveOptimizationGenerativeModel(IncrementalObjectiveOptimi
 
         d = {}
         for trial in trials:
-            if trial["result"]["reason"] == "success" and self._dp_compliant(trial):
+            if trial["result"]["reason"] == "success":
                 tid = trial["tid"]
                 d[tid] = []
                 for evaluation in evaluations:
@@ -719,6 +719,39 @@ def get_best_set_params(project_path):
             fmin = trial["loss"]
 
     return trial_fmin
+
+
+def get_best_dp_compliant_params(project_path, epsilon_threshold):
+    """Return the best-ranked trial satisfying dp_epsilon <= epsilon_threshold.
+
+    Ranking is determined by the losses already written by update_trials_losses
+    (lower = better). Returns None if no trial has a dp_certificate, or none
+    pass the threshold, printing a clear diagnostic in that case.
+    """
+    trials = load_project(project_path, is_print=False)
+    sorted_results = sorted(trials.results, key=lambda t: t["loss"])
+
+    for trial in sorted_results:
+        eps = trial.get("dp_epsilon")
+        if eps is not None and eps <= epsilon_threshold:
+            return trial
+
+    n = len(sorted_results)
+    n_certified = sum(1 for t in sorted_results if t.get("dp_epsilon") is not None)
+    if n_certified == 0:
+        print(
+            f"[DP gate] No trial in {project_path} has a dp_certificate "
+            f"({n} trial(s) total). Was the model trained with --private 1?"
+        )
+    else:
+        best_eps = min(
+            t["dp_epsilon"] for t in sorted_results if t.get("dp_epsilon") is not None
+        )
+        print(
+            f"[DP gate] No trial in {project_path} satisfies epsilon <= {epsilon_threshold}. "
+            f"Best epsilon found: {best_eps:.4g} ({n_certified}/{n} trials certified)."
+        )
+    return None
 
 
 def get_best_set_params_imbalanced(project_path):
