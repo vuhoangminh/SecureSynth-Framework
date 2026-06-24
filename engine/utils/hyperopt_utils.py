@@ -293,6 +293,73 @@ class IncrementalObjectiveOptimizationMLMethodImbalanced(
 
 
 class IncrementalObjectiveOptimizationGenerativeModel(IncrementalObjectiveOptimization):
+    def __init__(self, hyperopt_project_path, is_print=True, dp_epsilon_threshold=None):
+        super().__init__(hyperopt_project_path, is_print)
+        # DP gate: trials with dp_epsilon > threshold are excluded from ranking.
+        # Uses dp_epsilon_prv (tighter PRV bound) when available, else dp_epsilon (RDP).
+        # None disables the gate (non-DP runs).
+        self.dp_epsilon_threshold = dp_epsilon_threshold
+
+    def _dp_compliant(self, trial):
+        if self.dp_epsilon_threshold is None:
+            return True
+        result = trial["result"]
+        eps_prv = result.get("dp_epsilon_prv")
+        eps = eps_prv if eps_prv is not None else result.get("dp_epsilon")
+        if eps is None:
+            return False  # DP gate active but no certificate → reject
+        return eps <= self.dp_epsilon_threshold
+
+    def update_trials_losses(self, evaluations: list):
+        with open(self.hyperopt_project_path, "rb") as f:
+            trials = pickle.load(f)
+
+        if self.is_print:
+            print()
+            print("Before updating losses")
+            for i, trial in enumerate(trials.trials):
+                print(f"Trial {i} loss: {trial['result']['loss']}")
+
+        d = {}
+        for trial in trials:
+            if trial["result"]["reason"] == "success" and self._dp_compliant(trial):
+                tid = trial["tid"]
+                d[tid] = []
+                for evaluation in evaluations:
+                    row = trial["result"][f"scores_{evaluation}"]
+                    row = pd.DataFrame([row])
+                    row = self.update_metric_higher_is_better(row, evaluation)
+                    d[tid].extend(row.values.tolist()[0])
+
+        df_score = pd.DataFrame.from_dict(d, orient="index").T
+        df_score = df_score.fillna(self.fill_inf_nan)
+
+        df_data = df_score.iloc[:, :]
+        X = df_data.values
+
+        tids = list(df_score.columns.values)
+        ranks = self.compute_ranks(X)
+        ranks_mean = ranks.mean(axis=0)
+
+        newloss_dict = dict(zip(tids, ranks_mean))
+
+        for trial in trials:
+            result = trial["result"]
+            if result["reason"] != "success" or not self._dp_compliant(trial):
+                result["loss"] = np.inf
+            else:
+                tid = trial["tid"]
+                result["loss"] = -newloss_dict[tid]
+
+        with open(self.hyperopt_project_path, "wb") as f:
+            pickle.dump(trials, f)
+
+        if self.is_print:
+            print()
+            print("After updating losses")
+            for i, trial in enumerate(trials.trials):
+                print(f"Trial {i} loss: {trial['result']['loss']}")
+
     def update_metric_higher_is_better(self, row, evaluation):
         row = row.replace([np.inf], self.fill_inf_nan)
         row = row.replace([np.nan], self.fill_inf_nan)

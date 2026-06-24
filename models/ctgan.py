@@ -928,6 +928,9 @@ class CTGAN(BaseSynthesizer):
             meters["dp_epsilon_prv"].update(epsilon_prv)
             meters["dp_delta"].update(delta)
             exp_logger.to_json(os.path.join(self.args.dir_logs, "logger.json"))
+            import json as _json
+            with open(os.path.join(self.args.dir_logs, "dp_certificate.json"), "w") as _f:
+                _json.dump({"dp_epsilon": epsilon_rdp, "dp_epsilon_prv": epsilon_prv, "dp_delta": delta}, _f)
         # Added by Minh -- DP fix
 
         if self.args.row_number_full is not None:

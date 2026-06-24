@@ -157,6 +157,14 @@ def add_dict_to_args(parser, dictionary):
 
 
 def objective(params):
+    def read_dp_certificate(dir_logs):
+        cert_path = os.path.join(dir_logs, "dp_certificate.json")
+        if os.path.exists(cert_path):
+            import json as _json
+            with open(cert_path) as _f:
+                return _json.load(_f)
+        return {}
+
     def construct_return_dict(
         loss,
         reason,
@@ -167,6 +175,7 @@ def objective(params):
         df_score_dp,
         dir_logs,
     ):
+        dp_cert = read_dp_certificate(dir_logs) if dir_logs is not None else {}
         return {
             "loss": loss,
             "status": STATUS_OK,
@@ -186,6 +195,9 @@ def objective(params):
             "scores_dp": (
                 df_score_dp.iloc[0].to_dict() if df_score_dp is not None else {}
             ),
+            "dp_epsilon": dp_cert.get("dp_epsilon", None),
+            "dp_epsilon_prv": dp_cert.get("dp_epsilon_prv", None),
+            "dp_delta": dp_cert.get("dp_delta", None),
             "dir_logs": dir_logs if "dir_logs" in locals() else None,
         }
 
