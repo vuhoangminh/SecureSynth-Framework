@@ -931,6 +931,8 @@ class CTGAN(BaseSynthesizer):
             import json as _json
             with open(os.path.join(self.args.dir_logs, "dp_certificate.json"), "w") as _f:
                 _json.dump({"dp_epsilon": epsilon_rdp, "dp_epsilon_prv": epsilon_prv, "dp_delta": delta}, _f)
+            self._dp_accountant = _dp_accountant
+            self._dp_total_steps = _dp_total_steps
         # Added by Minh -- DP fix
 
         if self.args.row_number_full is not None:
